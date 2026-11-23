@@ -5,6 +5,10 @@ using UnityEngine;
 using BepInEx.Unity.IL2CPP;
 #endif
 
+#if STORE_IL2CPP
+[assembly: System.Reflection.AssemblyInformationalVersion(HSRTimer.PluginInfo.StoreVersion)]
+#endif
+
 namespace HSRTimer
 {
     /// <summary>

@@ -14,6 +14,20 @@ dotnet run --project .\tests\StoreLogic\StoreLogic.csproj -c Release
 
 出力は `src/HSRTimer/bin/store/Release/net6.0/HSRTimer.dll` です。DLL を配布する場合は同梱の `LICENSE` も含めます。参照用のゲーム DLL と BepInEx DLL は出力に含まれません。既定で PB 保存が有効です。PB 無効版が必要な場合は `-p:StorePreview=true` を指定します。
 
+## v0.1.0-pre の配布 ZIP を用意する
+
+Windows で、実際に Store 版を起動して生成された `BepInEx/core` と `BepInEx/interop` を使います。リポジトリ直下で PowerShell を開き、パスを書き換えて実行します。
+
+```powershell
+$BepInExDir = 'C:\Path\To\HumanFallFlat\BepInEx'
+.\scripts\New-StoreReleaseZip.ps1 -BepInExDir $BepInExDir
+```
+
+作成された `HSRTimer-MicrosoftStore-v0.1.0-pre.zip` を解凍し、`HSRTimer.dll`、`LICENSE`、`README.txt` の3ファイルだけがあることを確認します。解凍した DLL を使って Windows 実機で起動し、BepInEx ログと About の `0.1.0-pre` 表示、設定、PB 保存と再起動後の読み込みを確認します。
+
+公開を進める指示が出た段階で、確認したコミットを `v0.1.0-pre` タグの対象にし、GitHub Releases で **Pre-release** を選びます。[日本語のリリースノート](releases/v0.1.0-pre.md) と、実機で確認した ZIP を添付します。
+
+
 ## 機能の状態
 
 | 機能 | このブランチの状態 | Windows で確認する内容 |

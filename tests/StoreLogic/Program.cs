@@ -253,4 +253,12 @@ Equal(false, AtomFeed.TryParseLatest("<html />", out _, out releaseError, storeR
 Equal(true, AtomFeed.TryParseLatest(Feed(upstreamRelease, storeRelease), out var storeUpdate, out _, storeRepository), "Select only dedicated Store release");
 Equal(storeRelease, storeUpdate.Url, "Store release link");
 
+Equal("0.1.0-pre", PluginInfo.RuntimeVersion, "Store runtime version");
+Equal(true, VersionUtil.TryParse(PluginInfo.RuntimeVersion, out var currentPre), "Recognise running prerelease");
+Equal("pre", currentPre.Pre, "Keep prerelease suffix");
+Equal(true, VersionUtil.TryParse("v0.1.0", out var stable), "Recognise stable counterpart");
+Equal(true, VersionUtil.Compare(stable, currentPre) > 0, "Stable release sorts after the running prerelease");
+Equal(false, AtomFeed.TryParseLatest(Feed(storeRepository + "/releases/tag/v" + PluginInfo.RuntimeVersion),
+    out _, out releaseError, storeRepository), "The test release is not a stable update candidate");
+
 Console.WriteLine("Store logic checks passed.");

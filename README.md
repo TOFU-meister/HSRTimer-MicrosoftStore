@@ -2,6 +2,8 @@
 
 Windows x64 の **Human: Fall Flat（Microsoft Store／Xbox PC アプリ版）** 向けの非公式移植です。ゲーム時間の自動計測、Timer HUD、タグ別の PB、サブセグメント比較、マーカーを利用できます。
 
+テスト版のバージョンは **0.1.0-pre** です。[テスト版の導入説明](docs/releases/README-v0.1.0-pre.txt)
+
 ## 対応環境
 
 - Windows x64、Human: Fall Flat の Unity 2019.4.24f1 IL2CPP 版
