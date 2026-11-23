@@ -27,19 +27,18 @@ HSRTimer Microsoft Store `0.1.1-pre` と TwilightInputOverlay Microsoft Store
 スレッドで行い、デリゲートはゲームプロセスの終了まで有効です。
 描画コールバックは、例外時にも自分が開いた IMGUI グループを閉じてください。
 
-## 開発版の配布 ZIP を用意する
+## 配布用 DLL を作成する
 
-Windows で、実際に Store 版を起動して生成された `BepInEx/core` と `BepInEx/interop` を使います。リポジトリ直下で PowerShell を開き、パスを書き換えて実行します。
+Windows x64 でゲームを起動して生成された `BepInEx/interop` と、同じインストールの `BepInEx/core` を使います。リポジトリ直下で次を実行します。
 
 ```powershell
 $BepInExDir = 'C:\Path\To\HumanFallFlat\BepInEx'
-.\scripts\New-StoreReleaseZip.ps1 -BepInExDir $BepInExDir
+.\scripts\New-StoreReleaseDll.ps1 -BepInExDir $BepInExDir -OutputDirectory .\release
 ```
 
-作成された `HSRTimer-MicrosoftStore-v0.1.1-pre.zip` を解凍し、`HSRTimer.dll`、`LICENSE`、`README.txt` の3ファイルだけがあることを確認します。解凍した DLL を使って Windows 実機で起動し、BepInEx ログと About の `0.1.1-pre` 表示、設定、PB 保存と再起動後の読み込みを確認します。
+この開発版では `HSRTimer-v0.1.1-pre.dll` が生成されます。スクリプトは x64、アセンブリ名、プラグイン GUID、BepInEx の版番号、製品バージョン、LICENSE の埋め込みを確認します。配布先に出力するのは検証済みの DLL だけです。
 
-公開を進める指示が出た段階で、確認したコミットのバージョンに対応するタグ（この開発版は `v0.1.1-pre`）を作り、GitHub Releases で **Pre-release** を選びます。対象版のリリースノートと、実機で確認した ZIP を添付します。
-
+公開時は DLL を Release に添付し、著作権表示を含む [LICENSE](../LICENSE) の全文を Release 本文に掲載するか、別の `LICENSE` アセットとして添付します。DLL にも同じライセンス全文が埋め込まれています。対象コミットのタグは `v<version>` を使用し、Release は **Pre-release** に設定します。
 
 カスタムテキストの `{version}` はゲーム版（例 `v1096141`）、`{pluginversion}` は HSRTimer 版（例 `0.1.1-pre`）です。従来のレイアウトでプラグイン版を表示したい場合は `{pluginversion}` に変更します。
 
@@ -62,7 +61,7 @@ $BepInExDir = 'C:\Path\To\HumanFallFlat\BepInEx'
 ## 初回の実機テスト
 
 1. ゲームを終了し、従来の `BepInEx/config/HSRTimer` と過去の検証版設定・記録をバックアップします。既存プラグインと診断 DLL を `BepInEx/plugins` の外へ一時移動します。
-2. 実機の `core` と `interop` で Release ビルドします。`HSRTimer.dll` 1 個を `BepInEx/plugins/HSRTimer-MicrosoftStore/` へ置きます。言語ファイルは DLL に埋め込まれた英語・簡体字中国語で起動できます。
+2. 実機の `core` と `interop` で Release ビルドします。生成した `HSRTimer.dll` または配布名の `HSRTimer-v<version>.dll` を1個だけ `BepInEx/plugins/HSRTimer-MicrosoftStore/` へ置きます。言語ファイルは DLL に埋め込まれた英語・簡体字中国語で起動できます。
 3. ゲームを起動し、`BepInEx/LogOutput.log` で `HSRTimer Microsoft Store` のロード、`PB writes: True` と `Store data directory is writable`、`GameAfterLoadBoundaryPatch` と `GameFallBoundaryPatch` のインストールを確認します。失敗時はログ全文を保存します。Home で設定を開き、HUD の変更を確認します。
 4. Mansion で通常の落下、ポーズと再開、チェックポイントの再読み込み、通常完走を行います。コンソールで `hsr clock status` と `hsr clock history 30` を採取します。入力を再現できる条件で複数回完走し、ロードの `load`、終了の `pass`、セグメントの確定値を比較します。同じ物理ステップに複数回 `Fall` が来ても終了値が更新されないことを確認します。フレーム表示でも試し、ポーズ中に LRT は静止し RT は進むことを確認します。
 5. Home を閉じて設定を保存し、再起動後に HUD の文字サイズと有効なタグが復元されることを確認します。

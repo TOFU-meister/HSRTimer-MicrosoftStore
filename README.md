@@ -6,7 +6,7 @@ Windows x64 の **Human: Fall Flat（Microsoft Store／Xbox PC アプリ版）**
 
 ## バージョン管理
 
-Store 版は `0.x.x-pre` を使い、各プラグインで独立して進めます。先頭の `0` と末尾の `-pre` はプレリリース期間中固定です。小機能、バグ修正、UI 調整は3番目を進めます。大きな機能追加、仕様変更、大規模な修正は2番目を進め、3番目を `0` に戻します。バージョン更新時は `PluginInfo.cs` と `.csproj` の番号をそろえます。公開時のタグは `v<version>`、配布 ZIP は `HSRTimer-MicrosoftStore-v<version>.zip` とします。
+Store 版は `0.x.x-pre` を使い、各プラグインで独立して進めます。先頭の `0` と末尾の `-pre` はプレリリース期間中固定です。小機能、バグ修正、UI 調整は3番目を進めます。大きな機能追加、仕様変更、大規模な修正は2番目を進め、3番目を `0` に戻します。バージョン更新時は `PluginInfo.cs` と `.csproj` の番号をそろえます。公開時のタグは `v<version>`、配布 DLL は `HSRTimer-v<version>.dll` とします。
 
 ## 対応環境
 
@@ -17,9 +17,9 @@ Store 版は `0.x.x-pre` を使い、各プラグインで独立して進めま�
 ## インストールと更新
 
 1. BepInEx をゲームの実行ファイルがあるフォルダーへ展開し、ゲームを一度起動してから終了します。
-2. [Store 版の Releases](https://github.com/TOFU-meister/HSRTimer-MicrosoftStore/releases) から Store 版の配布物を取得します。配布物がまだない場合は、[実機の参照 DLL を使ったビルド手順](docs/MICROSOFT-STORE.md#ビルド)を参照してください。
-3. ゲームを終了した状態で、`HSRTimer.dll` を `BepInEx/plugins/HSRTimer-MicrosoftStore/` に置きます。言語ファイルが同梱されている場合は、`lang` フォルダーを DLL の隣に置けます。
-4. 更新時は同じ場所の DLL を差し替えます。以前の HSRTimer DLL が `BepInEx/plugins` 配下の別フォルダーにある場合は、そのフォルダーの外に移動し、読み込まれる HSRTimer DLL が1個になるようにします。
+2. [Store 版の Releases](https://github.com/TOFU-meister/HSRTimer-MicrosoftStore/releases) から `HSRTimer-v<version>.dll` をダウンロードします。公開済みの初回版は ZIP を解凍し、その中の `HSRTimer.dll` を使います。
+3. ゲームを終了した状態で、取得した DLL を `BepInEx/plugins/HSRTimer-MicrosoftStore/` に置きます。ファイル名はダウンロード時のまま使えます。
+4. 更新時は `BepInEx/plugins` 全体から旧版の `HSRTimer.dll` や `HSRTimer-v*.dll` を取り除き、読み込まれる HSRTimer DLL を1個にします。TwilightInputOverlay を併用する場合も、各プラグインを1個ずつ配置してください。
 5. 起動後、**Home** キーで設定画面を開きます。About の更新確認はこの専用リポジトリの安定版を案内します。DLL の差し替えは手動です。
 
 ### BepInEx コンソールを非表示にする
@@ -51,6 +51,6 @@ Store 版は `0.x.x-pre` を使い、各プラグインで独立して進めま�
 
 ## ソースとクレジット
 
-開発ブランチは `dev`、配布用ブランチは `main` です。配布前に、実機参照でビルドした Store 版 DLL と同梱の LICENSE を確認します。将来自動更新を導入する場合は、専用リポジトリに公開した Store 専用の資産名、対象プラットフォーム、署名済みハッシュを検証し、検証成功後にバックアップ付きで置き換える構成を前提とします。
+開発ブランチは `dev`、配布用ブランチは `main` です。配布前に、[DLLの配布手順](docs/MICROSOFT-STORE.md#配布用-dll-を作成する)に従い、実機参照版とライセンス表記を確認します。将来自動更新を導入する場合は、専用リポジトリに公開した Store 専用の資産名、対象プラットフォーム、署名済みハッシュを検証し、検証成功後にバックアップ付きで置き換える構成を前提とします。
 
 原作は TwilightCup の [HSRTimer](https://github.com/TwilightCup/HSRTimer) です。[MIT License](LICENSE) と原作者の著作権表示を継承しています。

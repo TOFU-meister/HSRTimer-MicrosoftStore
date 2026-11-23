@@ -29,6 +29,7 @@
 
   <ItemGroup Condition="'$(StoreIl2Cpp)' == 'true'">
     <None Include="../../LICENSE" Link="LICENSE" CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="../../LICENSE" LogicalName="HSRTimer.LICENSE" />
     <StoreCore Include="BepInEx.Core;BepInEx.Unity.IL2CPP;Il2CppInterop.Runtime;0Harmony" />
     <StoreInterop Include="Il2Cppmscorlib;Il2CppSystem;Assembly-CSharp;HumanAPI;UnityEngine.CoreModule;UnityEngine.IMGUIModule;UnityEngine.TextRenderingModule;UnityEngine.AudioModule;UnityEngine.PhysicsModule;UnityEngine.InputLegacyModule;UnityEngine.UnityWebRequestModule;UnityEngine.UI" />
     <Reference Include="@(StoreCore->'$(BepInExDir)/core/%(Identity).dll')" Private="false" />
