@@ -54,48 +54,20 @@ so a custom rule gets no special treatment and needs none.
 
 ## 3. Development setup
 
-Requirements:
+Build with the .NET 6 SDK and the Store player's BepInEx 6 IL2CPP x64
+`core` and generated `interop` directories.
 
-- the .NET SDK (`dotnet`);
-- *Human: Fall Flat* installed (the build references the game's managed DLLs);
-- BepInEx 5.x (HarmonyX) installed in the game.
-
-```bash
-git clone https://github.com/TwilightCup/HSRTimer.git
-cd HSRTimer
+```powershell
+git clone https://github.com/TOFU-meister/HSRTimer-MicrosoftStore.git
+cd HSRTimer-MicrosoftStore
 git switch dev
-dotnet build src/HSRTimer/HSRTimer.csproj
+$BepInExDir = 'C:\Path\To\HumanFallFlat\BepInEx'
+dotnet build src/HSRTimer/HSRTimer.csproj -c Release -p:StoreIl2Cpp=true "-p:BepInExDir=$BepInExDir"
+dotnet run --project tests/StoreLogic/StoreLogic.csproj -c Release
 ```
 
-The build resolves game/BepInEx references from `GAME_MANAGED` (the game's
-`*_Data/Managed` directory) and `BEPINEX_CORE` (the `BepInEx/core` directory).
-Set them either in a gitignored `Directory.Build.user.props` at the repository
-root:
-
-```xml
-<Project>
-  <PropertyGroup>
-    <GAME_MANAGED>/path/to/Human Fall Flat/Human_Data/Managed</GAME_MANAGED>
-    <BEPINEX_CORE>/path/to/Human Fall Flat/BepInEx/core</BEPINEX_CORE>
-  </PropertyGroup>
-</Project>
-```
-
-or export them for the build:
-
-```bash
-GAME_MANAGED="/path/to/Human_Data/Managed" \
-BEPINEX_CORE="/path/to/BepInEx/core" \
-dotnet build src/HSRTimer/HSRTimer.csproj
-```
-
-Output lands in `src/HSRTimer/bin/Debug/netstandard2.0/`: the unversioned
-`HSRTimer.dll` (kept for external-plugin compatibility) plus the versioned
-`HSRTimer-v0.0.0.dll` you deploy to `BepInEx/plugins/`. The plugin self-seeds
-its config and `lang/` files under the BepInEx config dir on first run.
-
-There is no test suite and no linter — **the compiler is the only automated
-check**, so make sure `dotnet build` is clean before opening a PR.
+See the [Store guide](docs/MICROSOFT-STORE.md) for the output path and
+in-game checks. Store release uploads are performed manually after verification.
 
 ### Testing in game
 

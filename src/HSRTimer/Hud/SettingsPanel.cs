@@ -432,7 +432,13 @@ namespace HSRTimer
         {
             GUILayout.Space(6);
             // R12.2: top two lines = plugin name + version number.
-            GUILayout.Label(PluginInfo.PLUGIN_NAME, _section);
+            GUILayout.Label(PluginInfo.RuntimeName, _section);
+#if STORE_IL2CPP
+            GUILayout.Label(loc.Get("PANEL_ABOUT_STORE_PORT"), _small);
+            GUILayout.Label("Windows x64 / Unity 2019.4.24f1 IL2CPP / BepInEx 6.0.0-be.793", _small);
+            if (GUILayout.Button(loc.Get("PANEL_ABOUT_UPSTREAM"), _button))
+                OpenUrl(PluginInfo.UpstreamRepositoryUrl);
+#endif
             GUILayout.Label(PluginInfo.RuntimeVersion, _value);
 
             // R12.3: next two lines = the first two non-empty lines of LICENSE
@@ -483,6 +489,10 @@ namespace HSRTimer
                         GUILayout.Label(loc.Get(
                             updater.ErrorFromCheck ? "PANEL_ABOUT_UPDATE_ERROR" : "PANEL_ABOUT_DOWNLOAD_ERROR",
                             updater.ErrorText), _small);
+#if STORE_IL2CPP
+                    else if (updater.NoPublishedRelease)
+                        GUILayout.Label(loc.Get("PANEL_ABOUT_NO_STORE_RELEASE"), _small);
+#endif
                     else if (updater.UpToDate)
                     {
                         // CheckedVersion holds the raw release tag (e.g. "v1.6.0"), but
@@ -512,10 +522,14 @@ namespace HSRTimer
             if (!string.IsNullOrEmpty(release.Url)
                 && GUILayout.Button(loc.Get("PANEL_ABOUT_OPEN_RELEASE"), _button))
                 OpenUrl(release.Url);
+#if STORE_IL2CPP
+            GUILayout.Label(loc.Get("PANEL_ABOUT_STORE_MANUAL_UPDATE"), _small);
+#else
             GUI.enabled = !updater.IsBusy;
             if (GUILayout.Button(loc.Get("PANEL_ABOUT_UPDATE"), _button))
                 updater.ApplyUpdate();
             GUI.enabled = true;
+#endif
         }
 
         private static void OpenRepository()

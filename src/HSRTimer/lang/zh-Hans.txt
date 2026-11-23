@@ -102,6 +102,10 @@ PANEL_LANG_SELECT_HINT:[点击选择]
 PANEL_RELOAD_LANGUAGE:重新加载语言文件
 PANEL_PRESS_KEY:请按键...
 PANEL_ABOUT_GITHUB:GitHub 仓库
+PANEL_ABOUT_STORE_PORT:适用于 Microsoft Store / Xbox PC 应用的非官方移植版。原作者为 TwilightCup。
+PANEL_ABOUT_UPSTREAM:原版 HSRTimer（TwilightCup）
+PANEL_ABOUT_NO_STORE_RELEASE:暂无可用的 Store 稳定版，请查看 Store 仓库的发布状态。
+PANEL_ABOUT_STORE_MANUAL_UPDATE:请手动下载并安装 Store 版。
 
 # ===== 插件更新检查 (R13) =====
 PANEL_ABOUT_CHECK_UPDATE:检查更新

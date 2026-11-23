@@ -209,4 +209,20 @@ finally
     Directory.Delete(testRoot, recursive: true);
 }
 
+const string storeRepository = "https://github.com/TOFU-meister/HSRTimer-MicrosoftStore";
+Equal(storeRepository, PluginInfo.PLUGIN_REPOSITORY_URL, "Store repository identity");
+string Feed(params string[] urls) => "<feed xmlns='http://www.w3.org/2005/Atom'>" +
+    string.Concat(System.Linq.Enumerable.Select(urls, url => $"<entry><link href='{url}' /></entry>")) + "</feed>";
+string upstreamRelease = PluginInfo.UpstreamRepositoryUrl + "/releases/tag/v9.0.0";
+string storeRelease = storeRepository + "/releases/tag/v1.0.0";
+Equal(false, AtomFeed.TryParseLatest(Feed(upstreamRelease), out _, out string releaseError, storeRepository), "Reject upstream-only feed");
+Equal(AtomFeed.NoStableRelease, releaseError, "No eligible Store release result");
+Equal(false, AtomFeed.TryParseLatest(Feed(storeRelease + "-preview.1"), out _, out releaseError, storeRepository), "Skip prereleases");
+Equal(AtomFeed.NoStableRelease, releaseError, "No stable Store release result");
+Equal(false, AtomFeed.TryParseLatest(Feed(), out _, out releaseError, storeRepository), "Empty Atom feed");
+Equal(AtomFeed.NoStableRelease, releaseError, "Empty feed is distinct from malformed response");
+Equal(false, AtomFeed.TryParseLatest("<html />", out _, out releaseError, storeRepository), "Reject non-feed response");
+Equal(true, AtomFeed.TryParseLatest(Feed(upstreamRelease, storeRelease), out var storeUpdate, out _, storeRepository), "Select only dedicated Store release");
+Equal(storeRelease, storeUpdate.Url, "Store release link");
+
 Console.WriteLine("Store logic checks passed.");

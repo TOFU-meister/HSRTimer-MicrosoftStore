@@ -14,6 +14,8 @@
     <Compile Include="../../src/HSRTimer/Subsegment/SubsegmentFileStore.cs" />
     <Compile Include="../../src/HSRTimer/Subsegment/SubsegmentModels.cs" />
     <Compile Include="../../src/HSRTimer/PluginInfo.cs" />
+    <Compile Include="../../src/HSRTimer/Updater/AtomFeed.cs" />
+    <Compile Include="../../src/HSRTimer/Updater/VersionUtil.cs" />
     <Compile Include="../../src/HSRTimer/Store/StoreDataPolicy.cs" />
     <Compile Include="../../src/HSRTimer/Config/PersistenceService.cs" />
     <Compile Include="../../src/HSRTimer/Store/StoreRecordWriter.cs" />

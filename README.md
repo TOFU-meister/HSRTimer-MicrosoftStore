@@ -1,76 +1,48 @@
-English | [中文](README_zh.md)
+# HSRTimer Microsoft Store
 
-# HSRTimer
+Windows x64 の **Human: Fall Flat（Microsoft Store／Xbox PC アプリ版）** 向けの非公式移植です。ゲーム時間の自動計測、Timer HUD、タグ別の PB、サブセグメント比較、マーカーを利用できます。
 
-A speedrun auto-timer plugin for **Human: Fall Flat**.
+## 対応環境
 
-HSRTimer maintains a precise **game-time** clock (stepped by the game's physics
-frame, immune to lag and wall-clock manipulation), automatically detects level
-start/stop from the game's authoritative state machine, validates runs against
-configurable speedrun categories ("tags"), renders a configurable floating HUD,
-and is fully localizable.
+- Windows x64、Human: Fall Flat の Unity 2019.4.24f1 IL2CPP 版
+- [BepInEx 6.0.0-be.793 IL2CPP Windows x64（dbc82f0）](https://builds.bepinex.dev/projects/bepinex_be/793/BepInEx-Unity.IL2CPP-win-x64-6.0.0-be.793%2Bdbc82f0.zip)
+- プラグインの対象ランタイムは .NET 6。ソースからビルドする場合は .NET 6 SDK が必要です。
 
-If the [Level Collections](https://github.com/HeyBlack233/LevelCollections) (`LevelCollections`) plugin is
-installed, HSRTimer integrates with it to treat a collection's final level as
-the end of a full run. HSRTimer works fine without it (declared as a soft
-dependency).
+## インストールと更新
 
-## Configuration
+1. BepInEx をゲームの実行ファイルがあるフォルダーへ展開し、ゲームを一度起動してから終了します。
+2. [Store 版の Releases](https://github.com/TOFU-meister/HSRTimer-MicrosoftStore/releases) から Store 版の配布物を取得します。配布物がまだない場合は、[実機の参照 DLL を使ったビルド手順](docs/MICROSOFT-STORE.md#ビルド)を参照してください。
+3. ゲームを終了した状態で、`HSRTimer.dll` を `BepInEx/plugins/HSRTimer-MicrosoftStore/` に置きます。言語ファイルが同梱されている場合は、`lang` フォルダーを DLL の隣に置けます。
+4. 更新時は同じ場所の DLL を差し替えます。以前の HSRTimer DLL が `BepInEx/plugins` 配下の別フォルダーにある場合は、そのフォルダーの外に移動し、読み込まれる HSRTimer DLL が1個になるようにします。
+5. 起動後、**Home** キーで設定画面を開きます。About の更新確認はこの専用リポジトリの安定版を案内します。DLL の差し替えは手動です。
 
-### Config panel
+### BepInEx コンソールを非表示にする
 
-All features can be configured using the in-game settings panel.
-Default keybind for opening the panel is `HOME`.
+ゲームを終了し、初回起動で生成された `BepInEx/config/BepInEx.cfg` の既存の `[Logging.Console]` セクションで `Enabled = false` に設定します。調査用ログは `BepInEx/LogOutput.log` を確認してください。[BepInEx のコンソール設定](https://docs.bepinex.dev/articles/user_guide/troubleshooting.html#enable-console)
 
-### Config files
+## 設定と PB
 
-All config lives under `<BepInEx config dir>/HSRTimer/`:
+保存先は既定で **`BepInEx/config/HSRTimer-MicrosoftStore/`** です。書き込めない場合は **`%LOCALAPPDATA%\HSRTimer-MicrosoftStore\`** を使います。実際の場所は起動ログの `Store data directory:` に表示されます。
 
-| File | Contents |
-|------|----------|
-| `settings.ini` | Toggles, keybinds, language, drift tolerance |
-| `tags.ini` | Enabled rule tags (the active rule set — no category presets) |
-| `layout.ini` | HUD rows, custom texts, panel position, gradient colors |
-| `lang/*.txt` | Localization files |
+| データ | 保存先からの相対パス |
+| --- | --- |
+| 設定・レイアウト・タグ | `settings.ini`、`layout.ini`、`tags.ini` |
+| 言語・プリセット | `lang/`、`presets/` |
+| IL・Full Game PB | `subsegment/pb/IL/`、`subsegment/pb/ML/` |
+| マーカー・Marker PB | `markers/` |
 
-See [docs/CONFIG.md](docs/CONFIG.md) for every key. Config files are
-human-readable text; malformed lines are skipped with a logged warning that
-includes the file name and line number (the plugin never fails to start because
-of a single bad line).
+旧保存先から引き継ぐ場合は、[バックアップと手動移行の手順](docs/MICROSOFT-STORE.md)を参照してください。
 
-## Default keybinds
+## 既知の制限
 
-| Action | Default key |
-|--------|-------------|
-| Reset run | `Backspace` |
-| Retry level | `R` |
-| Open/close settings panel | `Home` |
+- Store 版プリセットはレイアウトのみを保存・復元します。
+- 設定欄はクリックで編集し、Enter で確定、Esc で取り消します。日本語 IME の直接入力は未検証です。
+- Steam Workshop 連携や外部プラグインには Store 対応が必要です。
 
-All settings can be changed live in the settings panel (press `Home`). Rebind
-keys there too — focus a keybind field and press the desired key. Changes are
-saved when the panel is closed or the game exits. See [docs/CONFIG.md](docs/CONFIG.md).
+不具合は [このリポジトリの Issues](https://github.com/TOFU-meister/HSRTimer-MicrosoftStore/issues) に、ゲームとプラグインのバージョン、再現手順、関連する `LogOutput.log` の抜粋を添えて報告してください。共有前にローカルのユーザー名などを伏せてください。
 
-## Build
+## ソースとクレジット
 
-Requires the .NET SDK (`dotnet`) and the game installed via Steam.
+開発ブランチは `dev`、配布用ブランチは `main` です。配布前に、実機参照でビルドした Store 版 DLL と同梱の LICENSE を確認します。将来自動更新を導入する場合は、専用リポジトリに公開した Store 専用の資産名、対象プラットフォーム、署名済みハッシュを検証し、検証成功後にバックアップ付きで置き換える構成を前提とします。
 
-```bash
-dotnet build src/HSRTimer/HSRTimer.csproj
-```
-
-The build resolves game/BepInEx DLL references from `GAME_MANAGED` /
-`BEPINEX_CORE`. On this machine those paths live in the gitignored
-`Directory.Build.user.props`; on another machine or a non-default Steam library,
-set them via environment variables:
-
-```bash
-GAME_MANAGED="/path/to/Human_Data/Managed" \
-BEPINEX_CORE="/path/to/BepInEx/core" \
-dotnet build src/HSRTimer/HSRTimer.csproj
-```
-
-The output includes a versioned copy at `src/HSRTimer/bin/Debug/netstandard2.0/HSRTimer-v{version}.dll`; deploy that file. The unversioned `HSRTimer.dll` is also emitted for external plugin compatibility.
-
-## License
-
-MIT. See [LICENSE](LICENSE).
+原作は TwilightCup の [HSRTimer](https://github.com/TwilightCup/HSRTimer) です。[MIT License](LICENSE) と原作者の著作権表示を継承しています。

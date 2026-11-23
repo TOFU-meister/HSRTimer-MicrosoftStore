@@ -13,12 +13,14 @@ namespace HSRTimer
 #if STORE_IL2CPP
         public const string StoreVersion = "0.0.0-store.preview.1";
         internal const string RuntimeVersion = StoreVersion;
+        internal const string RuntimeName = "HSRTimer Microsoft Store";
+        internal const string PLUGIN_REPOSITORY_URL = "https://github.com/TOFU-meister/HSRTimer-MicrosoftStore";
 #else
         internal const string RuntimeVersion = PLUGIN_VERSION;
+        internal const string RuntimeName = PLUGIN_NAME;
+        internal const string PLUGIN_REPOSITORY_URL = UpstreamRepositoryUrl;
 #endif
-
-        /// <summary>Project repository, opened by the About page's link button (R12.4).</summary>
-        public const string PLUGIN_REPOSITORY_URL = "https://github.com/TwilightCup/HSRTimer";
+        internal const string UpstreamRepositoryUrl = "https://github.com/TwilightCup/HSRTimer";
 
         // R12.3: first two non-empty lines of the repository LICENSE file.
         // License notices are legal text and intentionally not localized; keep

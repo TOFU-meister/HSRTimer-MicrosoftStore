@@ -15,7 +15,7 @@ namespace HSRTimer
     /// loads and runs fine without it.
     /// </summary>
 #if STORE_IL2CPP
-    [BepInPlugin(PluginInfo.PLUGIN_GUID, "HSRTimer Microsoft Store", PluginInfo.StoreVersion)]
+    [BepInPlugin(PluginInfo.PLUGIN_GUID, PluginInfo.RuntimeName, PluginInfo.StoreVersion)]
 #else
     [BepInPlugin(PluginInfo.PLUGIN_GUID, PluginInfo.PLUGIN_NAME, PluginInfo.PLUGIN_VERSION)]
 #endif

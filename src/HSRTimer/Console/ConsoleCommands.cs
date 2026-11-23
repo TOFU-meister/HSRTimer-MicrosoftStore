@@ -784,7 +784,7 @@ namespace HSRTimer
         private static void CmdAbout()
         {
             var sb = new StringBuilder();
-            sb.AppendLine(PluginInfo.PLUGIN_NAME + " " + PluginInfo.RuntimeVersion);
+            sb.AppendLine(PluginInfo.RuntimeName + " " + PluginInfo.RuntimeVersion);
             sb.AppendLine(PluginInfo.LICENSE_LINE1);
             sb.AppendLine(PluginInfo.LICENSE_LINE2);
             sb.AppendLine(PluginInfo.PLUGIN_REPOSITORY_URL);
@@ -2133,7 +2133,7 @@ namespace HSRTimer
                     var sb = new StringBuilder();
                     sb.AppendLine($"phase={updater.Phase} busy={updater.IsBusy}");
                     sb.AppendLine($"base={updater.RepoBase} feed={updater.FeedUrl}");
-                    sb.AppendLine($"upToDate={updater.UpToDate} checked={updater.CheckedVersion ?? "-"} installed={updater.InstalledVersion ?? "-"}");
+                    sb.AppendLine($"noPublishedRelease={updater.NoPublishedRelease} upToDate={updater.UpToDate} checked={updater.CheckedVersion ?? "-"} installed={updater.InstalledVersion ?? "-"}");
                     if (updater.PendingRelease != null)
                     {
                         sb.AppendLine($"pending={updater.PendingRelease.Tag} \"{updater.PendingRelease.Title}\"");
@@ -2149,7 +2149,11 @@ namespace HSRTimer
                     break;
                 case "apply":
                     updater.ApplyUpdate();
+#if STORE_IL2CPP
+                    Print("Automatic installation is disabled for Microsoft Store. Install releases manually.");
+#else
                     Print("Update apply started; result is logged to the BepInEx log.");
+#endif
                     break;
                 case "cancel":
                     updater.Cancel();

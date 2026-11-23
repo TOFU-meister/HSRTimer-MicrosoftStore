@@ -61,6 +61,8 @@ namespace HSRTimer
         public UpdatePhase Phase { get; private set; } = UpdatePhase.Idle;
 
         /// <summary>True after a successful check that found no newer release.</summary>
+        public bool NoPublishedRelease { get; private set; }
+
         public bool UpToDate { get; private set; }
 
         /// <summary>Version tag of the release the last check compared against.</summary>
@@ -87,9 +89,13 @@ namespace HSRTimer
 
         // ── internals ─────────────────────────────────────────────────────────
 
+#if !STORE_IL2CPP
         private string _pluginDir;
+#endif
         private string _currentVersion;
+#if !STORE_IL2CPP
         private string _repoBaseOverride; // session-only test hook (hsr update base)
+#endif
         private UnityWebRequest _activeRequest;
 
         private const int CheckTimeoutSeconds = 30;
@@ -122,7 +128,9 @@ namespace HSRTimer
         /// <summary>Wire up paths; called once from <see cref="Plugin.Awake"/>.</summary>
         public void Init(string pluginDir, string currentVersion)
         {
+#if !STORE_IL2CPP
             _pluginDir = pluginDir;
+#endif
             _currentVersion = currentVersion ?? PluginInfo.RuntimeVersion;
             Log($"updater ready (feed: {FeedUrl})");
         }
@@ -135,16 +143,21 @@ namespace HSRTimer
         {
             get
             {
+#if STORE_IL2CPP
+                return PluginInfo.PLUGIN_REPOSITORY_URL;
+#else
                 if (!string.IsNullOrEmpty(_repoBaseOverride))
                     return _repoBaseOverride;
                 ParseRepository(out string owner, out string repo);
                 return "https://github.com/" + owner + "/" + repo;
+#endif
             }
         }
 
         /// <summary>URL of the GitHub releases Atom feed used for the check.</summary>
         public string FeedUrl => RepoBase + "/releases.atom";
 
+#if !STORE_IL2CPP
         /// <summary>Construct the download URL for a release asset from its tag
         /// (GitHub redirects this to the real asset storage).</summary>
         public string DownloadUrl(string tag, string assetName)
@@ -152,16 +165,25 @@ namespace HSRTimer
             string safeTag = Uri.EscapeDataString(tag ?? "");
             return RepoBase + "/releases/download/" + safeTag + "/" + (assetName ?? "");
         }
+#endif
 
         /// <summary>Session-only repo-base override for offline testing
         /// (<c>hsr update base</c>). Empty/whitespace clears it.</summary>
         public void SetRepoBaseOverride(string url)
         {
+#if STORE_IL2CPP
+            LogWarn("The Store update feed is fixed to the Store repository.");
+#else
             _repoBaseOverride = string.IsNullOrWhiteSpace(url) ? null : url.Trim().TrimEnd('/');
             Log("update repo base override = " + (_repoBaseOverride ?? "(cleared)"));
+#endif
         }
 
+#if STORE_IL2CPP
+        public string RepoBaseOverride => null;
+#else
         public string RepoBaseOverride => _repoBaseOverride;
+#endif
 
         /// <summary>Start an async check for a newer release. No-op while busy.</summary>
         public void CheckForUpdate()
@@ -179,11 +201,7 @@ namespace HSRTimer
         public void ApplyUpdate()
         {
 #if STORE_IL2CPP
-            // Upstream release assets are for Unity Mono. Enable installation
-            // once this port has its own Store release feed and asset format.
-            ErrorFromCheck = false;
-            ErrorText = "Automatic installation requires a Microsoft Store IL2CPP release feed.";
-            LogWarn(ErrorText);
+            LogWarn("Automatic installation is disabled for Microsoft Store. Install releases manually.");
 #else
             if (IsBusy)
             {
@@ -310,6 +328,8 @@ namespace HSRTimer
             ErrorText = null;
             ErrorFromCheck = true;
             UpToDate = false;
+            NoPublishedRelease = false;
+            CheckedVersion = null;
             PendingRelease = null;
             Log($"update check started: {FeedUrl} (running {_currentVersion})");
 
@@ -331,10 +351,15 @@ namespace HSRTimer
                 {
                     if (outcome.HttpCode == 404)
                     {
+#if STORE_IL2CPP
+                        NoPublishedRelease = true;
+                        Log("Store release feed unavailable (HTTP 404).");
+#else
                         // The repo has no releases feed / releases yet — not an error.
                         UpToDate = true;
                         CheckedVersion = _currentVersion;
                         Log("update check: no releases found (HTTP 404); treating as up to date");
+#endif
                     }
                     else
                     {
@@ -354,8 +379,20 @@ namespace HSRTimer
 
         private void HandleFeedPayload(string payload)
         {
+#if STORE_IL2CPP
+            if (!AtomFeed.TryParseLatest(payload, out ReleaseInfo release, out string parseError, PluginInfo.PLUGIN_REPOSITORY_URL))
+#else
             if (!AtomFeed.TryParseLatest(payload, out ReleaseInfo release, out string parseError))
+#endif
             {
+#if STORE_IL2CPP
+                if (parseError == AtomFeed.NoStableRelease)
+                {
+                    NoPublishedRelease = true;
+                    Log("No stable Microsoft Store release has been published.");
+                    return;
+                }
+#endif
                 ErrorText = "unexpected response (" + parseError + ")";
                 LogWarn("update check failed: " + ErrorText);
                 return;
@@ -387,6 +424,7 @@ namespace HSRTimer
 
         // ── apply (download + install) ────────────────────────────────────────
 
+#if !STORE_IL2CPP
         private IEnumerator ApplyRoutine()
         {
             ReleaseInfo release = PendingRelease;
@@ -515,6 +553,8 @@ namespace HSRTimer
                 Plugin.Logger.LogWarning($"HSRTimer: failed to parse repository URL '{PluginInfo.PLUGIN_REPOSITORY_URL}': {ex.Message}");
             }
         }
+
+#endif
 
         internal static void Log(string message)
         {

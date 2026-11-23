@@ -33,6 +33,8 @@ namespace HSRTimer
     /// </summary>
     internal static class AtomFeed
     {
+        internal const string NoStableRelease = "no stable release found in feed";
+
         private static readonly Regex HtmlTag = new Regex("<[^>]+>", RegexOptions.Compiled);
         // Block-level tags become line breaks; inline tags (strong/em/code/a/…) are
         // dropped entirely so words are not split across lines.
@@ -46,7 +48,7 @@ namespace HSRTimer
         /// <param name="xml">The raw Atom XML document.</param>
         /// <param name="release">The newest non-prerelease release, or null when none is found.</param>
         /// <param name="error">Human-readable reason when parsing fails entirely, else null.</param>
-        public static bool TryParseLatest(string xml, out ReleaseInfo release, out string error)
+        public static bool TryParseLatest(string xml, out ReleaseInfo release, out string error, string repository = null)
         {
             release = null;
             error = null;
@@ -67,6 +69,13 @@ namespace HSRTimer
                 return false;
             }
 
+            if (repository != null && (doc.DocumentElement?.LocalName != "feed"
+                || doc.DocumentElement.NamespaceURI != "http://www.w3.org/2005/Atom"))
+            {
+                error = "response is not an Atom feed";
+                return false;
+            }
+
             // The Atom default namespace has no prefix, so qualified names are
             // just "entry"/"title"/"content"/"link" — GetElementsByTagName matches them.
             XmlNodeList entries = doc.GetElementsByTagName("entry");
@@ -77,7 +86,8 @@ namespace HSRTimer
                     continue;
 
                 string link = ExtractReleaseLink(entry);
-                if (string.IsNullOrEmpty(link))
+                if (string.IsNullOrEmpty(link) || (repository != null
+                    && !link.StartsWith(repository + "/releases/tag/", StringComparison.OrdinalIgnoreCase)))
                     continue;
                 string tag = TagFromLink(link);
                 if (string.IsNullOrEmpty(tag))
@@ -97,7 +107,7 @@ namespace HSRTimer
                 return true;
             }
 
-            error = "no stable release found in feed";
+            error = NoStableRelease;
             return false;
         }
 
