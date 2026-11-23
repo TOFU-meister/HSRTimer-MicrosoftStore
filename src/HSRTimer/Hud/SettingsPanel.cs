@@ -147,8 +147,17 @@ namespace HSRTimer
                 ConfigService.Instance.SaveSettings();
         }
 
+        internal bool ExternalTabCapturesInput => _visible
+#if STORE_IL2CPP
+            && !_failedPages.Contains(_tab)
+#endif
+            && SettingsPanelTabRegistry.Instance.CapturesInput(_tab - _tabKeys.Length);
+
         public void Toggle()
         {
+            if (_visible)
+                SettingsPanelTabRegistry.Instance.Deactivate(_tab - _tabKeys.Length);
+            _pendingRebind = null;
             _visible = !_visible;
 #if STORE_IL2CPP
             PanelTextInput.Cancel();
@@ -355,6 +364,9 @@ namespace HSRTimer
 #if STORE_IL2CPP
                     PanelTextInput.Cancel();
 #endif
+                    SettingsPanelTabRegistry.Instance.Deactivate(_tab - _tabKeys.Length);
+                    _pendingRebind = null;
+                    _scroll = Vector2.zero;
                     _tab = nextTab;
                     _presetDeleting = false;
                     _timerHudOpen = false;
@@ -405,6 +417,7 @@ namespace HSRTimer
             catch (System.Exception ex)
             {
                 _failedPages.Add(_tab);
+                SettingsPanelTabRegistry.Instance.Deactivate(_tab - _tabKeys.Length);
                 PanelTextInput.Cancel();
                 if (_loggedPageFailures.Add(_tab))
                     Plugin.Logger.LogWarning($"HSRTimer: settings page {_tab} failed: {ex}");
@@ -1100,18 +1113,7 @@ namespace HSRTimer
         // ── Page: external plugin tab (ISettingsPanelTab) ──
         private void DrawExternalTab(int index)
         {
-            var registry = SettingsPanelTabRegistry.Instance;
-            if (registry == null) return;
-            int i = 0;
-            foreach (var tab in registry.Tabs)
-            {
-                if (i == index)
-                {
-                    tab.Draw();
-                    return;
-                }
-                i++;
-            }
+            SettingsPanelTabRegistry.Instance.TabAt(index)?.Draw();
         }
 
         // ── widgets ──
@@ -1498,8 +1500,7 @@ namespace HSRTimer
             int ext = _tabKeys.Length;
             foreach (var tab in registry.Tabs)
             {
-                string title = tab.Title;
-                _tabDisplays[ext++] = string.IsNullOrEmpty(title) ? tab.GetType().Name : title;
+                _tabDisplays[ext++] = registry.TabTitle(tab);
             }
         }
     }

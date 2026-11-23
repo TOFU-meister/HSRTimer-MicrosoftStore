@@ -23,5 +23,8 @@
     <Compile Include="../../src/HSRTimer/Markers/MarkerStore.cs" />
     <Compile Include="../../src/HSRTimer/Markers/MarkerModels.cs" />
     <Compile Include="../../src/HSRTimer/Markers/MarkerJson.cs" />
+    <Compile Include="../../src/HSRTimer/Hud/ISettingsPanelTab.cs" />
+    <Compile Include="../../src/HSRTimer/Hud/ILocalizableSettingsPanelTab.cs" />
+    <Compile Include="../../src/HSRTimer/Hud/SettingsPanelTabRegistry.cs" />
   </ItemGroup>
 </Project>

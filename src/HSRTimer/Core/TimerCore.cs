@@ -581,7 +581,7 @@ namespace HSRTimer
             // The settings panel key always works (so the user can open/close it).
             if (InputUtil.GetKeyDown(s.MenuKey))
             {
-                if (SettingsPanel.Instance != null)
+                if (SettingsPanel.Instance != null && !SettingsPanel.Instance.ExternalTabCapturesInput)
                     SettingsPanel.Instance.Toggle();
                 return;
             }

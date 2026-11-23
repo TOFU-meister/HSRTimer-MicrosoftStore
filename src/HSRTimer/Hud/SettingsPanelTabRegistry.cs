@@ -121,6 +121,74 @@ namespace HSRTimer
         }
 
         /// <summary>
+        /// Register a process-lifetime tab through managed callbacks. Call on the
+        /// Unity thread. A rejected registration retains no callbacks.
+        /// </summary>
+        public bool RegisterCallbacks(string pluginGuid, Func<string> title, Action draw,
+            Action deactivate, Action save, Func<bool> capturesInput,
+            Func<string[]> supportedLanguages, Action<string> setLanguage)
+        {
+            if (title == null || draw == null || deactivate == null || save == null
+                || capturesInput == null || supportedLanguages == null || setLanguage == null)
+                return false;
+
+            var tab = new CallbackTab(title, draw, deactivate, capturesInput, supportedLanguages, setLanguage);
+            if (!Register(pluginGuid, tab))
+                return false;
+
+            SettingsSaved += save;
+            return true;
+        }
+
+        internal ISettingsPanelTab TabAt(int index)
+            => index >= 0 && index < _tabsInOrder.Count ? _tabsInOrder[index] : null;
+
+        internal void Deactivate(int index)
+        {
+            if (TabAt(index) is not CallbackTab tab) return;
+            try { tab.Deactivate(); }
+            catch (Exception ex) { LogWarning($"HSRTimer: tab deactivation failed: {ex}"); }
+        }
+
+        internal bool CapturesInput(int index)
+        {
+            if (TabAt(index) is not CallbackTab tab) return false;
+            try { return tab.CapturesInput(); }
+            catch (Exception ex)
+            {
+                LogWarning($"HSRTimer: tab input callback failed: {ex}");
+                Deactivate(index);
+                return false;
+            }
+        }
+
+        private sealed class CallbackTab : ILocalizableSettingsPanelTab
+        {
+            private readonly Func<string> _title;
+            private readonly Action _draw;
+            private readonly Func<string[]> _languages;
+            private readonly Action<string> _setLanguage;
+
+            internal CallbackTab(Func<string> title, Action draw, Action deactivate,
+                Func<bool> capturesInput, Func<string[]> languages, Action<string> setLanguage)
+            {
+                _title = title;
+                _draw = draw;
+                Deactivate = deactivate;
+                CapturesInput = capturesInput;
+                _languages = languages;
+                _setLanguage = setLanguage;
+            }
+
+            internal Action Deactivate { get; }
+            internal Func<bool> CapturesInput { get; }
+            public string Title => _title();
+            public IEnumerable<string> SupportedLanguages => _languages();
+            public void Draw() => _draw();
+            public void SetLanguage(string languageCode) => _setLanguage(languageCode);
+        }
+
+        /// <summary>
         /// Convenience overload that derives the plugin GUID from a
         /// BepInEx plugin instance. During plugin startup pass
         /// <c>this</c>.
@@ -300,11 +368,25 @@ namespace HSRTimer
             LogWarning($"HSRTimer: settings panel tab for plugin '{pluginGuid}' must declare English (\"en\") in SupportedLanguages; falling back to \"en\".");
         }
 
-        private static string TabTitle(ISettingsPanelTab tab)
+        internal string TabTitle(ISettingsPanelTab tab)
         {
-            string title = tab.Title;
-            return string.IsNullOrEmpty(title) ? tab.GetType().Name : title;
+            try
+            {
+                string title = tab.Title;
+                if (!string.IsNullOrEmpty(title)) return title;
+            }
+            catch (Exception ex)
+            {
+                if (_titleFailures.Add(tab))
+                    LogWarning($"HSRTimer: tab title failed: {ex}");
+            }
+
+            foreach (var entry in _tabsByPluginGuid)
+                if (ReferenceEquals(entry.Value, tab)) return entry.Key;
+            return tab.GetType().Name;
         }
+
+        private readonly HashSet<ISettingsPanelTab> _titleFailures = new();
 
         private static void LogWarning(string message)
         {

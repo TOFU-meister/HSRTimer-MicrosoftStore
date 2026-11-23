@@ -253,9 +253,39 @@ Equal(false, AtomFeed.TryParseLatest("<html />", out _, out releaseError, storeR
 Equal(true, AtomFeed.TryParseLatest(Feed(upstreamRelease, storeRelease), out var storeUpdate, out _, storeRepository), "Select only dedicated Store release");
 Equal(storeRelease, storeUpdate.Url, "Store release link");
 
-Equal("0.1.0-pre", PluginInfo.RuntimeVersion, "Store runtime version");
+Equal("0.1.0-pre.1", PluginInfo.RuntimeVersion, "Store runtime version");
+var tabs = new SettingsPanelTabRegistry();
+int saves = 0, draws = 0, deactivations = 0;
+string tabLanguage = null;
+Action saveTab = () => saves++;
+bool RegisterTab(string guid, Func<string> title, Action draw, Action save) =>
+    tabs.RegisterCallbacks(guid, title, draw, () => deactivations++, save,
+        () => true, () => new[] { "en", "zh-Hans" }, code => tabLanguage = code);
+Equal(false, RegisterTab("invalid", () => "Invalid", null, saveTab), "invalid callback rejected");
+Equal(true, RegisterTab("overlay", () => "Input Overlay", () => draws++, saveTab), "callback registration");
+Equal(false, RegisterTab("overlay", () => "duplicate", () => {}, saveTab), "duplicate rejected");
+Equal(1, tabs.Count, "one overlay tab");
+Equal("en", tabLanguage, "language on registration");
+tabs.NotifyLanguageChanged("zh-Hans");
+Equal("zh-Hans", tabLanguage, "language update");
+tabs.NotifyLanguageChanged("unsupported");
+Equal("en", tabLanguage, "language fallback");
+tabs.TabAt(0).Draw();
+Equal(1, draws, "draw callback");
+Equal(true, tabs.CapturesInput(0), "input callback");
+tabs.Deactivate(0);
+Equal(1, deactivations, "deactivation callback");
+Equal(true, RegisterTab("fault", () => throw new Exception("title"), () => {},
+    () => throw new Exception("save")), "faulting title does not partially register");
+Equal("fault", tabs.TabTitle(tabs.TabAt(1)), "title fallback");
+int trailingSaves = 0;
+tabs.SettingsSaved += () => trailingSaves++;
+tabs.NotifySettingsSaved();
+Equal(1, saves, "save once despite duplicate registration");
+Equal(1, trailingSaves, "faulty subscriber isolated");
+
 Equal(true, VersionUtil.TryParse(PluginInfo.RuntimeVersion, out var currentPre), "Recognise running prerelease");
-Equal("pre", currentPre.Pre, "Keep prerelease suffix");
+Equal("pre.1", currentPre.Pre, "Keep prerelease suffix");
 Equal(true, VersionUtil.TryParse("v0.1.0", out var stable), "Recognise stable counterpart");
 Equal(true, VersionUtil.Compare(stable, currentPre) > 0, "Stable release sorts after the running prerelease");
 Equal(false, AtomFeed.TryParseLatest(Feed(storeRepository + "/releases/tag/v" + PluginInfo.RuntimeVersion),

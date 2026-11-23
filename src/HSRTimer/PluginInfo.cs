@@ -11,7 +11,7 @@ namespace HSRTimer
         public const string PLUGIN_NAME = "HSRTimer";
         public const string PLUGIN_VERSION = "0.0.0";
 #if STORE_IL2CPP
-        public const string StoreVersion = "0.1.0-pre";
+        public const string StoreVersion = "0.1.0-pre.1";
         internal const string RuntimeVersion = StoreVersion;
         internal const string RuntimeName = "HSRTimer Microsoft Store";
         internal const string PLUGIN_REPOSITORY_URL = "https://github.com/TOFU-meister/HSRTimer-MicrosoftStore";

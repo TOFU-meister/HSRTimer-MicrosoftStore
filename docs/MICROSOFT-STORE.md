@@ -14,6 +14,19 @@ dotnet run --project .\tests\StoreLogic\StoreLogic.csproj -c Release
 
 出力は `src/HSRTimer/bin/store/Release/net6.0/HSRTimer.dll` です。DLL を配布する場合は同梱の `LICENSE` も含めます。参照用のゲーム DLL と BepInEx DLL は出力に含まれません。既定で PB 保存が有効です。PB 無効版が必要な場合は `-p:StorePreview=true` を指定します。
 
+## Input Overlay の設定タブ
+
+HSRTimer Microsoft Store `0.1.0-pre.1` と TwilightInputOverlay Microsoft Store
+`0.1.0-alpha.5` を同時に導入すると、HSRTimer の設定に「Input Overlay」
+タブが追加されます。Overlay の設定とプリセットは Overlay の Documents
+フォルダーへ保存されます。
+
+外部プラグインは `SettingsPanelTabRegistry.Instance.RegisterCallbacks` に
+.NET のデリゲートを渡して登録できます。既存の `ISettingsPanelTab` と
+`ILocalizableSettingsPanelTab` も引き続き使用できます。登録は Unity
+スレッドで行い、デリゲートはゲームプロセスの終了まで有効です。
+描画コールバックは、例外時にも自分が開いた IMGUI グループを閉じてください。
+
 ## v0.1.0-pre の配布 ZIP を用意する
 
 Windows で、実際に Store 版を起動して生成された `BepInEx/core` と `BepInEx/interop` を使います。リポジトリ直下で PowerShell を開き、パスを書き換えて実行します。

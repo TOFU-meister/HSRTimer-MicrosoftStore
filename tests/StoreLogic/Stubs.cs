@@ -52,13 +52,14 @@ namespace HSRTimer
     {
         public static ConfigService Instance;
         public SettingsModel Settings;
+        public LocalizationService Localization;
         public TestTags EnabledTags;
     }
     public class TestTags
     {
         public System.Collections.Generic.List<string> Tags;
     }
-    public class LocalizationService { public string Get(string key) => key; }
+    public class LocalizationService { public string Get(string key) => key; public string CurrentCode => "en"; }
     public static class Plugin
     {
         public static readonly TestLogger Logger = new TestLogger();
@@ -96,4 +97,13 @@ namespace HSRTimer
         internal (bool latched, ulong ticks, double pause) StartBoundary
             => (_segmentStartLatched, _segmentStartTicks, _segmentStartPause);
     }
+}
+
+namespace BepInEx
+{
+    public sealed class BepInPlugin : System.Attribute { public string GUID { get; set; } }
+}
+namespace BepInEx.Unity.IL2CPP
+{
+    public class BasePlugin {}
 }
