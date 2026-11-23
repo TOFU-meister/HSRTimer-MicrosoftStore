@@ -2,7 +2,7 @@
 
 Windows x64 の **Human: Fall Flat（Microsoft Store／Xbox PC アプリ版）** 向けの非公式移植です。ゲーム時間の自動計測、Timer HUD、タグ別の PB、サブセグメント比較、マーカーを利用できます。
 
-開発版は **0.1.1-pre**、公開済みの初回テスト版は **0.1.0-pre** です。[テスト版の導入説明](docs/releases/README-v0.1.0-pre.txt)
+開発版は **0.1.2-pre**、公開済みの初回テスト版は **0.1.0-pre** です。[テスト版の導入説明](docs/releases/README-v0.1.0-pre.txt)
 
 ## 対応環境
 
@@ -55,8 +55,8 @@ C:\XboxGames\Human Fall Flat\Content\
 
 | プラグイン | ダウンロードする DLL | 置くフォルダー |
 | --- | --- | --- |
-| [HSRTimer Releases](https://github.com/TOFU-meister/HSRTimer-MicrosoftStore/releases) | `HSRTimer-v0.1.1-pre.dll` | `BepInEx\plugins\HSRTimer-MicrosoftStore\` |
-| [TwilightInputOverlay Releases](https://github.com/TOFU-meister/TwilightInputOverlay-MicrosoftStore/releases) | `TwilightInputOverlay-v0.1.0-pre.dll` | `BepInEx\plugins\TwilightInputOverlay\` |
+| [HSRTimer Releases](https://github.com/TOFU-meister/HSRTimer-MicrosoftStore/releases) | `HSRTimer-v0.1.2-pre.dll` | `BepInEx\plugins\HSRTimer-MicrosoftStore\` |
+| [TwilightInputOverlay Releases](https://github.com/TOFU-meister/TwilightInputOverlay-MicrosoftStore/releases) | `TwilightInputOverlay-v0.1.1-pre.dll` | `BepInEx\plugins\TwilightInputOverlay\` |
 
 必要なフォルダーを作り、DLL をダウンロードした名前のままコピーします。新しい配布形式は **DLL 単体**です。GitHub の **Source code (zip)** はソースコードで、導入には使いません。過去の HSRTimer **`0.1.0-pre`** を使う場合だけ、当時の配布 ZIP を展開して、中の `HSRTimer.dll` を同じ HSRTimer 用フォルダーに入れます。
 
@@ -67,9 +67,9 @@ Content\
 └─ BepInEx\
    └─ plugins\
       ├─ HSRTimer-MicrosoftStore\
-      │  └─ HSRTimer-v0.1.1-pre.dll
+      │  └─ HSRTimer-v0.1.2-pre.dll
       └─ TwilightInputOverlay\
-         └─ TwilightInputOverlay-v0.1.0-pre.dll
+         └─ TwilightInputOverlay-v0.1.1-pre.dll
 ```
 
 ## 動作確認
@@ -86,6 +86,8 @@ Content\
 - **保存データも消したい場合**は、下の「設定と保存先」とログで実際の保存場所を確認します。残したいデータを先にバックアップし、ゲームを終了したうえで、対象プラグインの保存フォルダーだけを削除します。
 
 ## 設定と保存先
+
+**Home → General → Automatic PB Backup（PBの自動バックアップ）** は既定で OFF です。ON にすると、更新前の PB を保存します。OFF にしても PB の通常保存と読み込みは使え、既存のバックアップは残ります。マーカー編集時のバックアップも従来どおりです。
 
 保存先は既定で **`<Windows のドキュメント>/HSRTimer-MicrosoftStore/`** です。Windows が返すドキュメントの場所を使うため、OneDrive 側に移動している場合も、その場所が安全かつ書き込み可能なら使います。フォルダーが見つからない、書き込みできない、または再解析ポイントを経由する場合は **`%LOCALAPPDATA%\HSRTimer-MicrosoftStore`** に切り替わります。
 
@@ -119,7 +121,7 @@ Content\
 | 間違った BepInEx を入れた | ゲームを終了し、混在を避けて上記の **6.0.0-be.793 Unity IL2CPP Windows x64** を入れ直します。 |
 | HUD が出ない | DLL が `BepInEx\plugins` の下にあるか、ログに読み込みが記録されているか、設定で HUD 表示が有効かを確認します。 |
 | Home で設定が開かない | ゲーム画面をクリックしてから Home を押します。キーを変更済みの場合は変更後のキーを使います。統合時は HSRTimer 側の設定キーを使います。 |
-| Input Overlay タブが出ない | HSRTimer **0.1.1-pre** と TwilightInputOverlay **0.1.0-pre** の両方がロードされているかをログで確認します。旧 HSRTimer **0.1.0-pre** との組み合わせでは Overlay の独立画面を使います。 |
+| Input Overlay タブが出ない | HSRTimer **0.1.2-pre** と TwilightInputOverlay **0.1.1-pre** の両方がロードされているかをログで確認します。旧 HSRTimer **0.1.0-pre** との組み合わせでは Overlay の独立画面を使います。 |
 | 旧版と新版が重複している | ゲームを終了し、`BepInEx\plugins` 全体でプラグイン名を検索します。同じプラグインの旧 DLL を外し、新 DLL だけを残します。 |
 
 BepInEx のコンソール画面を隠したい場合は、ゲーム終了後に `BepInEx\config\BepInEx.cfg` をメモ帳で開き、既存の `[Logging.Console]` の `Enabled = false` を設定します。ログファイルは `BepInEx\LogOutput.log` で確認できます。[コンソール設定の参考](https://docs.bepinex.dev/articles/user_guide/troubleshooting.html#enable-console)

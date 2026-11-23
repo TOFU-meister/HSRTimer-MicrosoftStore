@@ -21,6 +21,9 @@ namespace HSRTimer
         // the whole run in progress (SettingsLocks + TimerCore.IsRunInProgress).
         public bool ForceFrameTiming = false;
 
+#if STORE_IL2CPP
+        public bool AutomaticPbBackup;
+#endif
         public bool AutoReset = true;             // R1.7.2 (default on)
         public bool RestartClearsForgivable = false; // R5.4.3 — pause-menu Restart clears forgivable flags (default off); the one-key retry always clears them (R5.4.2, fixed)
         public float RetryMinDwell = 0.5f;        // R6 minimum empty-scene dwell (seconds)
@@ -115,6 +118,9 @@ namespace HSRTimer
 
         public void Load()
         {
+#if STORE_IL2CPP
+            AutomaticPbBackup = false;
+#endif
             foreach (var p in PersistenceService.Read(PersistenceService.PathFor("settings.ini")))
             {
                 if (p.Section == Section)
@@ -142,6 +148,9 @@ namespace HSRTimer
             {
                 switch (key)
                 {
+#if STORE_IL2CPP
+                    case "automatic_pb_backup": AutomaticPbBackup = ParseBool(value, false); break;
+#endif
                     case "auto_reset": AutoReset = ParseBool(value, AutoReset); break;
                     case "force_frame_timing": ForceFrameTiming = ParseBool(value, ForceFrameTiming); break;
                     case "restart_clears_forgivable": RestartClearsForgivable = ParseBool(value, RestartClearsForgivable); break;
@@ -265,6 +274,9 @@ namespace HSRTimer
         {
             var kv = new Dictionary<string, string>
             {
+#if STORE_IL2CPP
+                ["automatic_pb_backup"] = AutomaticPbBackup ? "true" : "false",
+#endif
                 ["auto_reset"] = AutoReset ? "true" : "false",
                 ["force_frame_timing"] = ForceFrameTiming ? "true" : "false",
                 ["restart_clears_forgivable"] = RestartClearsForgivable ? "true" : "false",

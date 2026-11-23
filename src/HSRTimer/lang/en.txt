@@ -37,6 +37,7 @@ SETTINGS_LANGUAGE:Language
 SETTINGS_RESET_KEY:Reset Key
 SETTINGS_RETRY_KEY:Retry Key
 SETTINGS_MENU_KEY:Settings Panel Key
+SETTINGS_AUTOMATIC_PB_BACKUP:Automatic PB Backup
 SETTINGS_AUTO_RESET:Auto-reset run
 SETTINGS_FORCE_FRAME_TIMING:Force frame timing
 SETTINGS_FORCE_FRAME_TIMING_LOCKED:Locked while a run is in progress. Reset the run or leave the level to change it.

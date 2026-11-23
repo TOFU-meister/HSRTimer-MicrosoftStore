@@ -52,12 +52,14 @@ namespace HSRTimer
         }
 
         /// <summary>Write a text file atomically: temp file + rename (R8.2.7.3).</summary>
-        public static bool WriteAtomic(string path, string content)
+        public static bool WriteAtomic(string path, string content) => WriteAtomic(path, content, keepBackup: true);
+
+        internal static bool WriteAtomic(string path, string content, bool keepBackup)
         {
             try
             {
 #if STORE_IL2CPP
-                StoreRecordWriter.WriteFile(PersistenceService.PluginDir, path, content, keepBackup: true);
+                StoreRecordWriter.WriteFile(PersistenceService.PluginDir, path, content, keepBackup);
 #else
                 var dir = Path.GetDirectoryName(path);
                 if (!string.IsNullOrEmpty(dir))

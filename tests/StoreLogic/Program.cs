@@ -156,10 +156,10 @@ try
     Equal("Any", SubsegmentFileStore.CategoryKey(Array.Empty<string>()), "Untagged category");
     string il = Path.Combine(directory, "subsegment", "pb", "IL", "Mansion", "Any");
     string tagged = Path.Combine(directory, "subsegment", "pb", "IL", "Mansion", category);
-    bool SaveIl(string target, string tag, long time, string filename = "sample.jsonl")
+    bool SaveIl(string target, string tag, long time, string filename = "sample.jsonl", bool keepBackup = true)
         => StoreRecordWriter.TrySaveBetter(directory, target, time,
             SubsegmentFileStore.MakeMetaJson("IL", "Mansion", null, tag, null, time, 1),
-            new System.Collections.Generic.Dictionary<string, string> { [filename] = sampleJson });
+            new System.Collections.Generic.Dictionary<string, string> { [filename] = sampleJson }, keepBackup);
     long ReadTime(string dir)
     {
         Equal(true, SubsegmentFileStore.TryReadTotalMs(Path.Combine(dir, "meta.json"), out long time), "Read persisted PB");
@@ -175,8 +175,41 @@ try
     Equal(true, SaveIl(il, "Any", 1000), "Faster run updates");
     Equal(1000L, ReadTime(il), "Updated record reloaded");
     Equal(1250L, ReadTime(il + ".previous"), "Previous complete PB is retained");
+    Equal(true, SaveIl(il, "Any", 980), "ON keeps previous and archives older backup");
+    var archived = Directory.GetDirectories(Path.GetDirectoryName(il), "Any.backup-*").Single();
+    Equal(1250L, ReadTime(archived), "Archived ON backup contains prior PB");
+    Equal(true, SaveIl(il, "Any", 970, keepBackup: false), "OFF updates existing IL PB");
+    Equal(1000L, ReadTime(il + ".previous"), "OFF keeps existing previous backup");
+    Equal(1250L, ReadTime(archived), "OFF keeps existing archived backup");
+    Equal(1, Directory.GetDirectories(Path.GetDirectoryName(il), "Any.backup-*").Length, "OFF creates no archived backup");
+    Equal(false, Directory.Exists(il + ".rollback"), "Successful OFF update removes temporary rollback");
+
+    string offIl = Path.Combine(Path.GetDirectoryName(il), "NoBackup");
+    var settingsModel = new SettingsModel();
+    Equal(false, settingsModel.AutomaticPbBackup, "New config defaults OFF");
+    var iniPath = PersistenceService.PathFor("settings.ini");
+    File.WriteAllText(iniPath, "[settings]\nauto_reset = true\n");
+    settingsModel.AutomaticPbBackup = true;
+    settingsModel.Load();
+    Equal(false, settingsModel.AutomaticPbBackup, "Legacy settings without key reset to OFF");
+    foreach (bool enabled in new[] { true, false })
+    {
+        settingsModel.AutomaticPbBackup = enabled;
+        settingsModel.Save();
+        settingsModel = new SettingsModel();
+        settingsModel.Load();
+        Equal(enabled, settingsModel.AutomaticPbBackup, "Backup preference persists after reload");
+    }
+    Equal(true, SaveIl(offIl, "NoBackup", 1500, keepBackup: settingsModel.AutomaticPbBackup), "First OFF PB save");
+    Equal(true, SaveIl(offIl, "NoBackup", 1400, keepBackup: false), "Improved OFF PB save");
+    Equal(false, Directory.Exists(offIl + ".previous"), "OFF creates no previous backup");
+    Directory.Move(offIl, offIl + ".rollback");
+    Equal(1400L, ReadTime(StoreRecordWriter.ReadBundleDirectory(offIl)), "Interrupted OFF swap remains readable");
+    Equal(false, SaveIl(offIl, "NoBackup", 1450, keepBackup: false), "OFF recovery prevents slower replacement");
+    Equal(1400L, ReadTime(offIl), "OFF restores interrupted swap");
+
     Equal(true, SaveIl(tagged, category, 1400), "Tagged record saves independently");
-    Equal(1000L, ReadTime(il), "Untagged record unaffected by the tagged run");
+    Equal(970L, ReadTime(il), "Untagged record unaffected by the tagged run");
 
     string ml = Path.Combine(directory, "subsegment", "pb", "ML", "Aztec", "Any");
     var levelFiles = new System.Collections.Generic.Dictionary<string, string>
@@ -185,12 +218,17 @@ try
         [Path.Combine("levels", "B1.jsonl")] = sampleJson,
     };
     string MultiMeta(long time) => SubsegmentFileStore.MakeMetaJson("ML", null, "Aztec", "Any", new[] { "B0", "B1" }, time, 2);
-    Equal(true, StoreRecordWriter.TrySaveBetter(directory, ml, 2000, MultiMeta(2000), levelFiles), "First campaign save");
+    Equal(true, StoreRecordWriter.TrySaveBetter(directory, ml, 2000, MultiMeta(2000), levelFiles, keepBackup: true), "First campaign save");
     Directory.Move(ml, ml + ".previous");
     Equal(2000L, ReadTime(StoreRecordWriter.ReadBundleDirectory(ml)), "Interrupted swap can be read after restart");
-    Equal(true, StoreRecordWriter.TrySaveBetter(directory, ml, 1900, MultiMeta(1900), levelFiles), "Campaign recovery and update");
+    Equal(true, StoreRecordWriter.TrySaveBetter(directory, ml, 1900, MultiMeta(1900), levelFiles, keepBackup: true), "Campaign recovery and update");
     Equal(1900L, ReadTime(ml), "Updated campaign record");
     Equal(2000L, ReadTime(ml + ".previous"), "Campaign backup intact");
+    Equal(true, StoreRecordWriter.TrySaveBetter(directory, ml, 1800, MultiMeta(1800), levelFiles, keepBackup: false),
+        "Campaign PB updates with backup OFF");
+    Equal(1800L, ReadTime(ml), "Campaign OFF active record readable");
+    Equal(2000L, ReadTime(ml + ".previous"), "OFF does not alter campaign backup");
+    Equal(false, Directory.Exists(ml + ".rollback"), "Successful campaign save cleans rollback");
 
     string corrupt = Path.Combine(tagged, "meta.json");
     File.WriteAllText(corrupt, "{");
@@ -212,7 +250,7 @@ try
         Directory.CreateDirectory(isolated);
         Directory.CreateSymbolicLink(Path.Combine(isolated, "link"), outside);
         Equal(false, StoreRecordWriter.TrySaveBetter(isolated, Path.Combine(isolated, "link", "Any"),
-            900, MultiMeta(900), levelFiles), "Linked path cannot redirect a Store write");
+            900, MultiMeta(900), levelFiles, keepBackup: false), "Linked path cannot redirect a Store write");
         Equal(0, Directory.GetFileSystemEntries(outside).Length, "Linked directory untouched");
     }
 
@@ -227,7 +265,18 @@ try
     Equal(true, MarkerStore.TryLoad("Mansion", "Any", out var markerReload), "Marker file reloaded");
     Equal(1800L, markerReload.pb.total_ms, "Marker PB after reload");
     string markerPath = MarkerStore.SetPath("Mansion", "Any");
-    Equal(1, Directory.GetFiles(Path.GetDirectoryName(markerPath), "*.bak-*").Length, "Marker backup retained");
+    Equal(0, Directory.GetFiles(Path.GetDirectoryName(markerPath), "*.bak-*").Length, "OFF marker PB creates no backup");
+    ConfigService.Instance = new ConfigService { Settings = new SettingsModel { AutomaticPbBackup = true } };
+    markers.pb.total_ms = 1700;
+    Equal(true, MarkerStore.Save(markers, onlyIfImproved: true), "ON marker PB saves");
+    Equal(1, Directory.GetFiles(Path.GetDirectoryName(markerPath), "*.bak-*").Length, "ON marker PB backup retained");
+    ConfigService.Instance.Settings.AutomaticPbBackup = false;
+    markers.pb.total_ms = 1600;
+    Equal(true, MarkerStore.Save(markers, onlyIfImproved: true), "OFF marker PB saves after ON");
+    Equal(1, Directory.GetFiles(Path.GetDirectoryName(markerPath), "*.bak-*").Length, "OFF preserves existing marker backup");
+    Equal(true, MarkerStore.Save(markers), "Ordinary marker edit saves");
+    Equal(2, Directory.GetFiles(Path.GetDirectoryName(markerPath), "*.bak-*").Length, "Ordinary marker edit keeps backup behavior");
+    ConfigService.Instance = null;
     File.WriteAllText(markerPath, "{");
     Equal(false, MarkerStore.Save(markers), "Malformed marker file cannot be replaced");
     Equal("{", File.ReadAllText(markerPath), "Malformed marker file retained");
@@ -295,7 +344,7 @@ Equal(true, VersionUtil.TryParse(PluginInfo.RuntimeVersion, out var currentPre),
 Equal("pre", currentPre.Pre, "Keep prerelease suffix");
 Equal(true, VersionUtil.TryParse("0.1.0-pre.1", out var previousPre), "Previous development version");
 Equal(true, VersionUtil.Compare(currentPre, previousPre) > 0, "Current version advances past prior build");
-Equal(true, VersionUtil.TryParse("v0.1.1", out var stable), "Recognise stable counterpart");
+Equal(true, VersionUtil.TryParse("v0.1.2", out var stable), "Recognise stable counterpart");
 Equal(true, VersionUtil.Compare(stable, currentPre) > 0, "Stable release sorts after the running prerelease");
 Equal(false, AtomFeed.TryParseLatest(Feed(storeRepository + "/releases/tag/v" + PluginInfo.RuntimeVersion),
     out _, out releaseError, storeRepository), "The test release is not a stable update candidate");

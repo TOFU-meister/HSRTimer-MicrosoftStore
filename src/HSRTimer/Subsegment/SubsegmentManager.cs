@@ -1216,7 +1216,8 @@ namespace HSRTimer
                 "IL", levelId, null, category, null, totalMs, ilSamples.Count);
 #if STORE_IL2CPP
             if (!StoreRecordWriter.TrySaveBetter(PersistenceService.PluginDir, dir, totalMs, metaJson,
-                    new Dictionary<string, string> { ["sample.jsonl"] = SubsegmentFileStore.MakeSampleJson(ilSamples) }))
+                    new Dictionary<string, string> { ["sample.jsonl"] = SubsegmentFileStore.MakeSampleJson(ilSamples) },
+                    keepBackup: SettingsFromConfig().AutomaticPbBackup))
                 return;
 #else
             string samplePath = Path.Combine(dir, "sample.jsonl");
@@ -1265,7 +1266,8 @@ namespace HSRTimer
             var files = new Dictionary<string, string>();
             foreach (var kv in _multiRunSamples)
                 files.Add(Path.Combine("levels", kv.Key + ".jsonl"), SubsegmentFileStore.MakeSampleJson(kv.Value));
-            if (!StoreRecordWriter.TrySaveBetter(PersistenceService.PluginDir, dir, _multiRunTotalMs, metaJson, files))
+            if (!StoreRecordWriter.TrySaveBetter(PersistenceService.PluginDir, dir, _multiRunTotalMs, metaJson, files,
+                    keepBackup: SettingsFromConfig().AutomaticPbBackup))
                 return;
 #else
             foreach (var kv in _multiRunSamples)

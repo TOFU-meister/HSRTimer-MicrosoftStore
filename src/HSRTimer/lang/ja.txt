@@ -1,0 +1,2 @@
+__LANG_NAME__:日本語（未翻訳項目は英語）
+SETTINGS_AUTOMATIC_PB_BACKUP:PBの自動バックアップ

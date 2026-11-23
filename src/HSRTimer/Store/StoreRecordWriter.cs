@@ -38,29 +38,43 @@ namespace HSRTimer
         internal static string ReadBundleDirectory(string directory)
         {
             string previous = directory + ".previous";
-            return !Directory.Exists(directory) && Directory.Exists(previous) ? previous : directory;
+            if (Directory.Exists(directory)) return directory;
+            string rollback = directory + ".rollback";
+            if (Directory.Exists(rollback)) return rollback;
+            return Directory.Exists(previous) ? previous : directory;
         }
 
         internal static bool TrySaveBetter(string root, string directory, long totalMs, string metadata,
-            IReadOnlyDictionary<string, string> samples)
+            IReadOnlyDictionary<string, string> samples, bool keepBackup)
         {
             try
             {
                 string previous = directory + ".previous";
+                string rollback = directory + ".rollback";
                 string stage = directory + ".tmp-" + Guid.NewGuid().ToString("N");
                 string lockPath = directory + ".lock";
                 StoreDataPolicy.EnsureSafePath(root, directory);
                 StoreDataPolicy.EnsureSafePath(root, previous);
+                StoreDataPolicy.EnsureSafePath(root, rollback);
                 StoreDataPolicy.EnsureSafePath(root, lockPath);
                 Directory.CreateDirectory(Path.GetDirectoryName(directory));
 
                 using var lease = new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None);
-                if (!Directory.Exists(directory) && Directory.Exists(previous))
+                if (Directory.Exists(rollback))
+                {
+                    if (Directory.Exists(directory))
+                        Directory.Delete(rollback, recursive: true);
+                    else
+                        Directory.Move(rollback, directory);
+                }
+                if (keepBackup && !Directory.Exists(directory) && Directory.Exists(previous))
                     Directory.Move(previous, directory);
 
-                if (Directory.Exists(directory))
+                string existingDirectory = ReadBundleDirectory(directory);
+
+                if (Directory.Exists(existingDirectory))
                 {
-                    if (!TryReadExisting(root, directory, out long existing))
+                    if (!TryReadExisting(root, existingDirectory, out long existing))
                         throw new IOException("Existing PB is unreadable or incomplete. It was retained.");
                     if (existing <= totalMs)
                         return false;
@@ -72,19 +86,29 @@ namespace HSRTimer
                         WriteFile(stage, Path.Combine(stage, sample.Key), sample.Value, keepBackup: false);
                     WriteFile(stage, Path.Combine(stage, "meta.json"), metadata, keepBackup: false);
 
+                    string displaced = keepBackup ? previous : rollback;
                     if (Directory.Exists(directory))
                     {
-                        if (Directory.Exists(previous))
+                        if (keepBackup && Directory.Exists(previous))
                             Directory.Move(previous, directory + ".backup-" + Guid.NewGuid().ToString("N"));
-                        Directory.Move(directory, previous);
+                        Directory.Move(directory, displaced);
                     }
 
                     try { Directory.Move(stage, directory); }
                     catch
                     {
-                        if (!Directory.Exists(directory) && Directory.Exists(previous))
-                            Directory.Move(previous, directory);
+                        if (!Directory.Exists(directory) && Directory.Exists(displaced))
+                            Directory.Move(displaced, directory);
                         throw;
+                    }
+
+                    if (!keepBackup && Directory.Exists(rollback))
+                    {
+                        try { Directory.Delete(rollback, recursive: true); }
+                        catch (Exception ex)
+                        {
+                            Plugin.Logger.LogWarning($"HSRTimer: PB was saved, but temporary rollback cleanup failed: {ex.Message}");
+                        }
                     }
 
                     return true;

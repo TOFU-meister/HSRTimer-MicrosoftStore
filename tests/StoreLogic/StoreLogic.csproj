@@ -26,5 +26,6 @@
     <Compile Include="../../src/HSRTimer/Hud/ISettingsPanelTab.cs" />
     <Compile Include="../../src/HSRTimer/Hud/ILocalizableSettingsPanelTab.cs" />
     <Compile Include="../../src/HSRTimer/Hud/SettingsPanelTabRegistry.cs" />
+    <Compile Include="../../src/HSRTimer/Config/SettingsModel.cs" />
   </ItemGroup>
 </Project>

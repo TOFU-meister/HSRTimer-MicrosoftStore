@@ -1,5 +1,12 @@
 namespace UnityEngine
 {
+    public enum KeyCode { Backspace, R, Home, Tab }
+    public struct Color
+    {
+        public Color(float r, float g, float b, float a) {}
+        public static Color white => new Color(1, 1, 1, 1);
+    }
+
     public class TextAsset { public string text; }
 
     public static class Resources
@@ -42,11 +49,11 @@ public class Game
 
 namespace HSRTimer
 {
-    public class SettingsModel
+    public static class PresetStore { public const string DefaultPresetName = "default"; }
+    public static class GradientText
     {
-        public bool AutoReset;
-        public string MarkersPath;
-        public bool MarkersDebugLogging;
+        public static UnityEngine.Color ParseColor(string value, UnityEngine.Color fallback) => fallback;
+        public static string ToHex(UnityEngine.Color color) => "FFFFFFFF";
     }
     public class ConfigService
     {

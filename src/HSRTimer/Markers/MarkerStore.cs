@@ -163,7 +163,12 @@ namespace HSRTimer
                 // with every marker deleted), but it is also the fingerprint of
                 // a writer bug — keep it visible when debugging is on.
                 LogDebug($"saving '{path}' (markers={set.markers.Count}, pbTimes={set.pbTimes.Count}, bytes={json.Length})");
+#if STORE_IL2CPP
+                bool ok = SubsegmentFileStore.WriteAtomic(path, json,
+                    keepBackup: !onlyIfImproved || ConfigService.Instance?.Settings?.AutomaticPbBackup == true);
+#else
                 bool ok = SubsegmentFileStore.WriteAtomic(path, json);
+#endif
                 if (!ok)
                     Plugin.Logger.LogWarning($"HSRTimer: markers save failed for '{path}' (see the write warning above).");
                 return ok;

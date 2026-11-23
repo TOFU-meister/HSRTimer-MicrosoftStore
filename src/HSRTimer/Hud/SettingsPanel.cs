@@ -610,6 +610,9 @@ namespace HSRTimer
                 "SETTINGS_FORCE_FRAME_TIMING",
                 s.ForceFrameTiming, loc);
             s.AutoReset = Toggle(loc.Get("SETTINGS_AUTO_RESET"), s.AutoReset);
+#if STORE_IL2CPP
+            s.AutomaticPbBackup = Toggle(loc.Get("SETTINGS_AUTOMATIC_PB_BACKUP"), s.AutomaticPbBackup);
+#endif
             s.RestartClearsForgivable = Toggle(loc.Get("SETTINGS_RESTART_CLEARS_FORGIVABLE"), s.RestartClearsForgivable);
             // Free-form input (clamped ≥0 on apply); the slider's 5s cap was
             // artificial — RetryAction only needs Mathf.Max(0, dwell).

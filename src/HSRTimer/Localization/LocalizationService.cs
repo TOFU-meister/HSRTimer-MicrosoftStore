@@ -42,7 +42,11 @@ namespace HSRTimer
 
         // Embedded base files shipped inside the DLL so localization always
         // works even if the lang/ folder is absent next to the plugin.
+#if STORE_IL2CPP
+        private static readonly string[] EmbeddedBases = { "en", "zh-Hans", "ja" };
+#else
         private static readonly string[] EmbeddedBases = { "en", "zh-Hans" };
+#endif
 
         /// <summary>Scan the lang directory and (re)build all language maps.</summary>
         public void Reload()
