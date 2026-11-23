@@ -61,7 +61,7 @@ $BepInExDir = 'C:\Path\To\HumanFallFlat\BepInEx'
 ## 初回の実機テスト
 
 1. ゲームを終了し、従来の `BepInEx/config/HSRTimer` と過去の検証版設定・記録をバックアップします。既存プラグインと診断 DLL を `BepInEx/plugins` の外へ一時移動します。
-2. 実機の `core` と `interop` で Release ビルドします。生成した `HSRTimer.dll` または配布名の `HSRTimer-v<version>.dll` を1個だけ `BepInEx/plugins/HSRTimer-MicrosoftStore/` へ置きます。言語ファイルは DLL に埋め込まれた英語・簡体字中国語で起動できます。
+2. 実機の `core` と `interop` で Release ビルドします。生成した `HSRTimer.dll` または配布名の `HSRTimer-v<version>.dll` を1個だけ `BepInEx/plugins/` へ置きます。言語ファイルは DLL に埋め込まれた英語・簡体字中国語で起動できます。
 3. ゲームを起動し、`BepInEx/LogOutput.log` で `HSRTimer Microsoft Store` のロード、`PB writes: True` と `Store data directory is writable`、`GameAfterLoadBoundaryPatch` と `GameFallBoundaryPatch` のインストールを確認します。失敗時はログ全文を保存します。Home で設定を開き、HUD の変更を確認します。
 4. Mansion で通常の落下、ポーズと再開、チェックポイントの再読み込み、通常完走を行います。コンソールで `hsr clock status` と `hsr clock history 30` を採取します。入力を再現できる条件で複数回完走し、ロードの `load`、終了の `pass`、セグメントの確定値を比較します。同じ物理ステップに複数回 `Fall` が来ても終了値が更新されないことを確認します。フレーム表示でも試し、ポーズ中に LRT は静止し RT は進むことを確認します。
 5. Home を閉じて設定を保存し、再起動後に HUD の文字サイズと有効なタグが復元されることを確認します。

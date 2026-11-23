@@ -55,21 +55,19 @@ C:\XboxGames\Human Fall Flat\Content\
 
 | プラグイン | ダウンロードする DLL | 置くフォルダー |
 | --- | --- | --- |
-| [HSRTimer Releases](https://github.com/TOFU-meister/HSRTimer-MicrosoftStore/releases) | `HSRTimer-v0.1.2-pre.dll` | `BepInEx\plugins\HSRTimer-MicrosoftStore\` |
-| [TwilightInputOverlay Releases](https://github.com/TOFU-meister/TwilightInputOverlay-MicrosoftStore/releases) | `TwilightInputOverlay-v0.1.1-pre.dll` | `BepInEx\plugins\TwilightInputOverlay\` |
+| [HSRTimer Releases](https://github.com/TOFU-meister/HSRTimer-MicrosoftStore/releases) | `HSRTimer-v0.1.2-pre.dll` | `BepInEx\plugins\` |
+| [TwilightInputOverlay Releases](https://github.com/TOFU-meister/TwilightInputOverlay-MicrosoftStore/releases) | `TwilightInputOverlay-v0.1.1-pre.dll` | `BepInEx\plugins\` |
 
-必要なフォルダーを作り、DLL をダウンロードした名前のままコピーします。新しい配布形式は **DLL 単体**です。GitHub の **Source code (zip)** はソースコードで、導入には使いません。過去の HSRTimer **`0.1.0-pre`** を使う場合だけ、当時の配布 ZIP を展開して、中の `HSRTimer.dll` を同じ HSRTimer 用フォルダーに入れます。
+`BepInEx` の中に `plugins` がなければ作ります。旧 DLL を取り除き、ダウンロードした DLL を名前そのままで `plugins` の直下にコピーします。プラグインごとのサブフォルダーは不要です。新しい配布形式は **DLL 単体**です。GitHub の **Source code (zip)** はソースコードで、導入には使いません。過去の HSRTimer **`0.1.0-pre`** を使う場合だけ、当時の配布 ZIP を展開して、中の `HSRTimer.dll` を同じ HSRTimer 用フォルダーに入れます。
 
-片方だけ使う場合は、そのプラグインの行だけが必要です。両方使う場合は次のようになります。
+片方だけ使う場合は、その DLL だけを入れます。両方使う場合は次のようになります。パスは一例です。
 
 ```text
-Content\
+C:\XboxGames\Human Fall Flat\Content\
 └─ BepInEx\
    └─ plugins\
-      ├─ HSRTimer-MicrosoftStore\
-      │  └─ HSRTimer-v0.1.2-pre.dll
-      └─ TwilightInputOverlay\
-         └─ TwilightInputOverlay-v0.1.1-pre.dll
+      ├─ HSRTimer-v0.1.2-pre.dll
+      └─ TwilightInputOverlay-v0.1.1-pre.dll
 ```
 
 ## 動作確認
