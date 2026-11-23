@@ -22,7 +22,9 @@ Windows x64 の **Human: Fall Flat（Microsoft Store／Xbox PC アプリ版）**
 
 ## 設定と PB
 
-保存先は既定で **`BepInEx/config/HSRTimer-MicrosoftStore/`** です。書き込めない場合は **`%LOCALAPPDATA%\HSRTimer-MicrosoftStore\`** を使います。実際の場所は起動ログの `Store data directory:` に表示されます。
+保存先は既定で **`<Windows のドキュメント>/HSRTimer-MicrosoftStore/`** です。Windows が返すドキュメントの場所を使うため、OneDrive 側に移動している場合も、その場所が安全かつ書き込み可能なら使います。フォルダーが見つからない、書き込みできない、または再解析ポイントを経由する場合は **`%LOCALAPPDATA%\HSRTimer-MicrosoftStore`** に切り替わります。
+
+ゲーム内では **Home → About → Open Data Folder** で、今使っている保存先をエクスプローラーで開けます。
 
 | データ | 保存先からの相対パス |
 | --- | --- |
@@ -31,7 +33,7 @@ Windows x64 の **Human: Fall Flat（Microsoft Store／Xbox PC アプリ版）**
 | IL・Full Game PB | `subsegment/pb/IL/`、`subsegment/pb/ML/` |
 | マーカー・Marker PB | `markers/` |
 
-旧保存先から引き継ぐ場合は、[バックアップと手動移行の手順](docs/MICROSOFT-STORE.md)を参照してください。
+旧 LocalAppData の設定や PB を引き継ぐには、ゲームを終了し、旧・新フォルダーをバックアップしてから、新しい場所へ必要なファイルをコピーします。PB は `meta.json` とサンプルを含むカテゴリフォルダーごとコピーし、同名データがある場合はどちらを使うか確認してから移してください。[手動移行の詳しい手順](docs/MICROSOFT-STORE.md#localappdata-の設定記録を引き継ぐ場合)
 
 ## 既知の制限
 

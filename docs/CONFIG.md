@@ -1,6 +1,6 @@
 # Configuration
 
-Store data is saved under `BepInEx/config/HSRTimer-MicrosoftStore/` by default, with a fallback under `%LOCALAPPDATA%`. See the [Store guide](MICROSOFT-STORE.md) for paths and migration.
+Store data is saved under `<Windows Documents>/HSRTimer-MicrosoftStore/` by default, with a fallback under `%LOCALAPPDATA%`. See the [Store guide](MICROSOFT-STORE.md) for paths and migration.
 
 All config lives under `<BepInEx config dir>/HSRTimer/` (on a typical Linux
 Steam install,

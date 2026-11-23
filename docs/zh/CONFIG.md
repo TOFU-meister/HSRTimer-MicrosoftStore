@@ -1,6 +1,6 @@
 # 配置
 
-Store 版默认使用 `BepInEx/config/HSRTimer-MicrosoftStore/`，不可写时回退到 `%LOCALAPPDATA%` 下的专用目录。参见 [Store 指南](../MICROSOFT-STORE.md)。
+Store 版默认使用 `<Windows 文档>/HSRTimer-MicrosoftStore/`，不可写时回退到 `%LOCALAPPDATA%` 下的专用目录。参见 [Store 指南](../MICROSOFT-STORE.md)。
 
 所有配置位于 `<BepInEx 配置目录>/HSRTimer/`(典型 Linux Steam 安装下为
 `~/.local/share/Steam/steamapps/common/Human Fall Flat/BepInEx/config/HSRTimer/`)。

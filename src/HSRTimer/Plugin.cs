@@ -29,6 +29,9 @@ namespace HSRTimer
         public override void Load()
         {
             Logger = Log;
+            StoreDataPolicy.InitialiseDataRoot(
+                System.Environment.GetFolderPath(System.Environment.SpecialFolder.MyDocuments),
+                System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData, System.Environment.SpecialFolderOption.DoNotVerify));
             StoreRuntime.InitialiseComponents();
             Initialise();
         }

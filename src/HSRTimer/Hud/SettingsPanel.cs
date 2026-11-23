@@ -428,6 +428,31 @@ namespace HSRTimer
 
         // ── Page: About (R12: plugin name, version, license notice, repository link;
         //    R13: Check Update) ──
+#if STORE_IL2CPP
+        private string _dataFolderError;
+
+        private void OpenDataFolder()
+        {
+            string path = PersistenceService.PluginDir;
+            try
+            {
+                if (!System.IO.Directory.Exists(path))
+                    throw new System.IO.DirectoryNotFoundException(path);
+                using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path)
+                {
+                    UseShellExecute = true,
+                    Verb = "explore",
+                });
+                _dataFolderError = null;
+            }
+            catch (System.Exception ex)
+            {
+                _dataFolderError = ex.Message;
+                Plugin.Logger.LogWarning($"HSRTimer: could not open data folder '{path}': {ex.Message}");
+            }
+        }
+#endif
+
         private void DrawAbout(LocalizationService loc)
         {
             GUILayout.Space(6);
@@ -451,6 +476,12 @@ namespace HSRTimer
             GUILayout.Space(10);
             if (GUILayout.Button(loc.Get("PANEL_ABOUT_GITHUB"), _button))
                 OpenRepository();
+#if STORE_IL2CPP
+            if (GUILayout.Button("Open Data Folder", _button))
+                OpenDataFolder();
+            if (_dataFolderError != null)
+                GUILayout.Label(loc.Get("PANEL_ABOUT_OPEN_DATA_ERROR", _dataFolderError), _small);
+#endif
 
             // R13: Check Update — query GitHub Releases, show the newest release,
             // and (on request) download + install it.

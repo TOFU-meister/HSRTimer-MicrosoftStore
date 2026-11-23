@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+#if !STORE_IL2CPP
 using BepInEx;
+#endif
 
 namespace HSRTimer
 {
@@ -42,7 +44,7 @@ namespace HSRTimer
     /// </summary>
     public static class PersistenceService
     {
-        /// <summary>The plugin's runtime directory under the BepInEx config root.</summary>
+        /// <summary>The plugin's active data directory.</summary>
 #if STORE_IL2CPP
         public static string PluginDir => StoreDataPolicy.DataRoot;
 #else

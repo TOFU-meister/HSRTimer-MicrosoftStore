@@ -90,5 +90,3 @@ namespace HSRTimer
             => (_segmentStartLatched, _segmentStartTicks, _segmentStartPause);
     }
 }
-
-namespace BepInEx { public static class Paths { public static string ConfigPath; } }

@@ -75,9 +75,11 @@ TimerCore.RecordSegmentStart();
 Equal((true, 40UL, 0.5), TimerCore.Instance.StartBoundary, "AfterLoad snapshot captures ticks and pause");
 
 string testRoot = Path.Combine(Path.GetTempPath(), "hsrtimer-store-" + Guid.NewGuid());
-BepInEx.Paths.ConfigPath = Path.Combine(testRoot, "BepInEx", "config");
+string documents = Path.Combine(testRoot, "OneDrive", "Documents");
+Directory.CreateDirectory(documents);
+StoreDataPolicy.InitialiseDataRoot(documents, Path.Combine(testRoot, "LocalAppData"));
 string directory = PersistenceService.PluginDir;
-Equal(Path.Combine(BepInEx.Paths.ConfigPath, StoreDataPolicy.DataDirectory), directory, "Writable BepInEx config wins");
+Equal(Path.Combine(documents, StoreDataPolicy.DataDirectory), directory, "Writable Windows-provided Documents wins");
 Equal(0, Directory.GetFiles(directory).Length, "Write probe leaves no file");
 Equal(true, StoreDataPolicy.PbWritesEnabled, "Store PB writes are enabled");
 Equal(Path.Combine(directory, "markers"), StoreDataPolicy.ResolveRecordPath(directory, Path.Combine("..", "HSRTimer"), "markers"), "Parent paths cannot reach legacy marker data");
@@ -91,8 +93,11 @@ try
     Directory.CreateDirectory(fallback);
     string original = Path.Combine(fallback, "settings.ini");
     File.WriteAllText(original, "[hud]\nsize = 99\n");
+    string previousPb = Path.Combine(fallback, "subsegment", "pb", "IL", "Mansion", "Any", "meta.json");
+    Directory.CreateDirectory(Path.GetDirectoryName(previousPb));
+    File.WriteAllText(previousPb, "original PB");
     string warning = null;
-    Equal(directory, StoreDataPolicy.SelectDataRoot(BepInEx.Paths.ConfigPath, () => fallback, message => warning = message), "Primary wins even with existing fallback data");
+    Equal(directory, StoreDataPolicy.SelectDataRoot(documents, fallback, message => warning = message), "Primary wins even with existing fallback data");
     Equal<string>(null, warning, "No fallback warning on primary success");
     string settings = PersistenceService.PathFor("settings.ini");
     Equal(0, System.Linq.Enumerable.Count(PersistenceService.Read(settings)), "Missing primary settings do not read from fallback");
@@ -101,11 +106,20 @@ try
         ["hud"] = new System.Collections.Generic.Dictionary<string, string> { ["size"] = "22" }
     };
     PersistenceService.Write(settings, section);
-    Equal("22", System.Linq.Enumerable.Single(PersistenceService.Read(settings)).Value, "Save and reload settings in BepInEx");
+    Equal("22", System.Linq.Enumerable.Single(PersistenceService.Read(settings)).Value, "Save and reload settings in Documents");
     string blocked = Path.Combine(testRoot, "blocked");
-    File.WriteAllText(blocked, "file prevents creation of the config directory");
-    Equal(fallback, StoreDataPolicy.SelectDataRoot(blocked, () => fallback, message => warning = message), "Unwritable primary selects fallback");
+    Directory.CreateDirectory(blocked);
+    File.WriteAllText(Path.Combine(blocked, StoreDataPolicy.DataDirectory), "file prevents creation of the data directory");
+    Equal(fallback, StoreDataPolicy.SelectDataRoot(blocked, fallback, message => warning = message), "Unwritable primary selects fallback");
     Equal(true, warning.Contains(blocked) && warning.Contains(fallback), "Fallback logs both paths and failure");
+    string missing = Path.Combine(testRoot, "MissingDocuments");
+    Equal(fallback, StoreDataPolicy.SelectDataRoot(missing, fallback, message => warning = message), "Missing Documents selects fallback");
+    Equal(false, Directory.Exists(missing), "Missing Documents is not created");
+    Equal(fallback, StoreDataPolicy.SelectDataRoot(null, fallback, message => warning = message), "Unresolved known folder selects fallback");
+    string protectedDocuments = Path.Combine(testRoot, "WindowsApps", "FakePackage", "Documents");
+    Directory.CreateDirectory(protectedDocuments);
+    Equal(fallback, StoreDataPolicy.SelectDataRoot(protectedDocuments, fallback, message => warning = message), "WindowsApps is never writable");
+    Equal(0, Directory.GetFileSystemEntries(protectedDocuments).Length, "Nothing was written to WindowsApps");
     Equal("[hud]\nsize = 99\n", File.ReadAllText(original), "Fallback settings preserved across both selections");
     Equal(directory, PersistenceService.PluginDir, "Process data root remains fixed");
     if (!OperatingSystem.IsWindows())
@@ -114,8 +128,8 @@ try
         Directory.CreateDirectory(packageTarget);
         string redirectedPackage = Path.Combine(testRoot, "package-link");
         Directory.CreateSymbolicLink(redirectedPackage, packageTarget);
-        string redirectedConfig = Path.Combine(redirectedPackage, "BepInEx", "config");
-        Equal(fallback, StoreDataPolicy.SelectDataRoot(redirectedConfig, () => fallback, message => warning = message),
+        string redirectedConfig = redirectedPackage;
+        Equal(fallback, StoreDataPolicy.SelectDataRoot(redirectedConfig, fallback, message => warning = message),
             "A redirected package ancestor triggers fallback");
         Equal(true, warning.Contains("reparse point") && warning.Contains(redirectedPackage),
             "The rejected ancestor is logged");
@@ -216,6 +230,7 @@ try
     File.WriteAllText(markerPath, "{");
     Equal(false, MarkerStore.Save(markers), "Malformed marker file cannot be replaced");
     Equal("{", File.ReadAllText(markerPath), "Malformed marker file retained");
+    Equal("original PB", File.ReadAllText(previousPb), "Documents saves and fallback probes leave existing LocalAppData PB intact");
 }
 finally
 {

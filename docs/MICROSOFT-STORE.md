@@ -49,22 +49,18 @@ dotnet run --project .\tests\StoreLogic\StoreLogic.csproj -c Release
 | Full Game | `subsegment/pb/ML/<project>/<category>/meta.json` と `levels/*.jsonl` |
 | Marker PB | `markers/<level>/<category>.json` |
 
-ユーザーデータルートは既定で `BepInEx/config/HSRTimer-MicrosoftStore` です。起動時に一時ファイルへの書き込みを試し、書き込めない場合は `%LOCALAPPDATA%\HSRTimer-MicrosoftStore` を使います。起動ログの `Store data directory:` で実際の保存先を確認できます。フォールバック時は元のパスと失敗理由も記録します。起動中は同じルートで設定・PB・マーカーなどを読み書きします。外部の Subsegment 参照用 `LoadPath` は引き続き読み取り専用です。
+保存先は `<Windows のドキュメント>/HSRTimer-MicrosoftStore` です。Windows の既知フォルダーを取得し、起動時に一時ファイルへの書き込みを試します。OneDrive へ移動されたドキュメントも、Windows が返す実際の場所が書き込み可能で再解析ポイントを経由しなければ使えます。ドキュメントが見つからない、安全性を確認できない、または書き込めない場合は `%LOCALAPPDATA%\HSRTimer-MicrosoftStore` を使います。WindowsApps は書き込み先の対象外です。
 
-### WindowsApps で LocalAppData に切り替わる場合
-
-BepInEx 6.0.0-be.793 の IL2CPP プリローダーは、Doorstop が読み込む DLL のパスから BepInEx ルートを求め、そこにある `config` を `BepInEx.Paths.ConfigPath` とします。ログで `WindowsApps\<パッケージ名>\BepInEx\config` が候補になっている場合、HSRTimer はその実行時パスを使用しています。[BepInEx プリローダー](https://github.com/BepInEx/BepInEx/blob/dbc82f0/Runtimes/Unity/BepInEx.Unity.IL2CPP/UnityPreloadRunner.cs) · [Paths.cs](https://github.com/BepInEx/BepInEx/blob/dbc82f0/BepInEx.Core/Paths.cs)
-
-`Store write path crosses a reparse point` は、保存先かその祖先が再解析ポイントと判定され、試験書き込みの前に拒否されたことを示します。このメッセージだけでリンクの種類やリダイレクト先、書き込み権限までは判別できません。WindowsApps のパッケージ配置先は Windows が管理し、標準の MSIX パッケージ内は読み取り専用です。パス名で例外を設けると、任意の場所へ書き込ませるリンクも通る可能性があるため、再解析ポイントの検査を維持し、LocalAppData にフォールバックします。書き込み試験に成功し、安全なパスとして確認できる BepInEx 配置では引き続き BepInEx 側を使います。[Microsoft の MSIX 配置・ファイルシステム仕様](https://learn.microsoft.com/en-us/windows/msix/desktop/desktop-to-uwp-behind-the-scenes)
+**Home → About → Open Data Folder** で現在の保存先をエクスプローラーで開けます。開けない場合は About にエラーが表示されます。起動ログの `Store data directory:` でも実際の保存先を確認できます。外部の Subsegment 参照用 `LoadPath` は読み取り専用です。
 
 ### LocalAppData の設定・記録を引き継ぐ場合
 
-1. ゲームを終了し、LocalAppData と BepInEx の両方の `HSRTimer-MicrosoftStore` フォルダーを別の場所にバックアップします。
+1. ゲームを終了し、LocalAppData とドキュメント の両方の `HSRTimer-MicrosoftStore` フォルダーを別の場所にバックアップします。
 2. LocalAppData 側から、引き継ぎたい INI、`lang`、`presets`、`markers`、`subsegment/pb` をコピーします。IL／ML の PB は、`meta.json` と対応するサンプルを含むカテゴリフォルダーごとコピーします。
 3. コピー先に同名ファイルや同じ PB カテゴリがある場合は、両方をバックアップに保持したまま、どちらの一式を使うか確認してから作業します。個別の JSONL と `meta.json` を異なる記録から混ぜないでください。
-4. 起動ログで BepInEx 側が選ばれたことを確認し、設定と PB 比較を確認します。
+4. 起動ログで ドキュメントが選ばれたことを確認し、設定と PB 比較を確認します。
 
-自動コピーや自動上書きはありません。保存先を切り替えた直後に別の設定や PB が表示される場合は、起動ログのパスを確認してください。フォールバック実機テストは、書き込み可能な通常環境と、BepInEx 自体は起動できるものの Store 専用データフォルダーには書き込めないテスト用環境で行います。後者ではログに失敗理由と LocalAppData 側のパスが表示されることを確認します。
+自動コピーや自動上書きはありません。保存先を切り替えた直後に別の設定や PB が表示される場合は、起動ログのパスを確認してください。フォールバック実機テストは、書き込み可能な通常環境と、ドキュメントの Store 専用データフォルダーに書き込めないテスト用環境で行います。後者ではログに失敗理由と LocalAppData 側のパスが表示されることを確認します。
 
 分類は `dev` と同じで、タグなしは `Any`、有効タグは序数順に並べて `+` で連結します。ファイル名には従来のサニタイズ規則が適用されます。Full Game は `Aztec%`、`Dark%`、`Steam%`、`Any%` の区切りで更新されます。無効な試行やシミュレーションでは記録せず、同タイム・遅いタイムは据え置きます。Marker PB の自動更新は従来どおりソロ／ホスト側で行います。
 

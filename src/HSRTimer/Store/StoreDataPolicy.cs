@@ -14,27 +14,34 @@ namespace HSRTimer
 
         internal const string DataDirectory = "HSRTimer-MicrosoftStore";
 
-        private static readonly Lazy<string> SelectedRoot = new Lazy<string>(() =>
-        {
-            string root = SelectDataRoot(BepInEx.Paths.ConfigPath, GetDataRoot, Plugin.Logger.LogWarning);
-            Plugin.Logger.LogInfo($"HSRTimer: Store data directory is writable: '{root}'.");
-            return root;
-        });
+        internal static string DataRoot { get; private set; }
 
-        internal static string DataRoot => SelectedRoot.Value;
-
-        internal static string SelectDataRoot(string configPath, Func<string> fallbackRoot, Action<string> warn)
+        internal static void InitialiseDataRoot(string documentsPath, string localAppDataPath)
         {
-            string preferred = Path.Combine(configPath, DataDirectory);
+            string fallback = string.IsNullOrEmpty(localAppDataPath) ? null : Path.Combine(localAppDataPath, DataDirectory);
+            DataRoot = SelectDataRoot(documentsPath, fallback, Plugin.Logger.LogWarning);
+            Plugin.Logger.LogInfo($"HSRTimer: Store data directory is writable: '{DataRoot}'.");
+            if (!string.IsNullOrEmpty(fallback) && Directory.Exists(fallback)
+                && !string.Equals(DataRoot, fallback, StringComparison.OrdinalIgnoreCase))
+                Plugin.Logger.LogInfo($"HSRTimer: Documents is active. Existing LocalAppData files at '{fallback}' are available for manual copying.");
+        }
+
+        internal static string SelectDataRoot(string documentsPath, string fallback, Action<string> warn)
+        {
+            string preferred = string.IsNullOrEmpty(documentsPath) ? null : Path.Combine(documentsPath, DataDirectory);
             try
             {
+                if (preferred == null || !Directory.Exists(documentsPath))
+                    throw new DirectoryNotFoundException("Windows Documents could not be found.");
                 ProbeWritable(preferred);
                 return preferred;
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is System.Security.SecurityException)
             {
-                string fallback = fallbackRoot();
-                warn($"HSRTimer: cannot write to Store data directory '{preferred}': {ex.Message}. Using '{fallback}'.");
+                if (string.IsNullOrEmpty(fallback))
+                    throw new IOException("LocalAppData could not be located and Documents is unavailable.", ex);
+
+                warn($"HSRTimer: cannot use Documents data directory '{preferred ?? "(unknown)"}': {ex.Message}. Trying '{fallback}'.");
                 try { ProbeWritable(fallback); }
                 catch (Exception fallbackFailure) when (fallbackFailure is IOException || fallbackFailure is UnauthorizedAccessException || fallbackFailure is System.Security.SecurityException)
                 {
@@ -52,16 +59,6 @@ namespace HSRTimer
             using var stream = new FileStream(probe, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1, FileOptions.DeleteOnClose);
             stream.WriteByte(0);
             stream.Flush(flushToDisk: true);
-        }
-
-        private static string GetDataRoot()
-        {
-            string userFolder = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            if (string.IsNullOrEmpty(userFolder))
-                userFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            if (string.IsNullOrEmpty(userFolder))
-                throw new IOException("Could not locate the current user's data directory.");
-            return Path.Combine(userFolder, DataDirectory);
         }
 
         internal static string ResolveRecordPath(string dataDirectory, string configuredPath, string fallback)
@@ -99,6 +96,8 @@ namespace HSRTimer
             // An otherwise isolated path must not redirect writes into Steam.
             while (current != null)
             {
+                if (string.Equals(Path.GetFileName(current), "WindowsApps", StringComparison.OrdinalIgnoreCase))
+                    throw new IOException("Store data cannot be written inside WindowsApps: " + current);
                 try
                 {
                     if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)

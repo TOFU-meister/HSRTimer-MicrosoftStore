@@ -103,6 +103,7 @@ PANEL_RELOAD_LANGUAGE:Reload language files
 PANEL_PRESS_KEY:Press a key...
 PANEL_ABOUT_GITHUB:GitHub Repository
 PANEL_ABOUT_STORE_PORT:Unofficial port for Microsoft Store / Xbox app on PC. Original HSRTimer by TwilightCup.
+PANEL_ABOUT_OPEN_DATA_ERROR:Could not open the data folder: {0}
 PANEL_ABOUT_UPSTREAM:Original HSRTimer (TwilightCup)
 PANEL_ABOUT_NO_STORE_RELEASE:No stable Store release is available yet. See the Store repository for release status.
 PANEL_ABOUT_STORE_MANUAL_UPDATE:Download and install the Store release manually.
