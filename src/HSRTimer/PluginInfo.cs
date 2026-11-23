@@ -2,7 +2,7 @@ namespace HSRTimer
 {
     /// <summary>
     /// Static plugin identity constants used by the BepInEx plugin attribute
-    /// and surfaced to the UI (e.g. the {version} template variable and the
+    /// and surfaced to the UI (e.g. the {pluginversion} template variable and the
     /// settings panel's About page).
     /// </summary>
     internal static class PluginInfo

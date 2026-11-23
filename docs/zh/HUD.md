@@ -123,7 +123,8 @@ color_b = CCCCCCCF
 |------|--------|
 | `{date}` | 当前日期(`YYYY-MM-DD`) |
 | `{time}` | 当前时间(`HH:MM:SS`) |
-| `{version}` | 插件版本 |
+| `{version}` | Human: Fall Flat 游戏版本（Store 版）。无法读取时显示 `?` |
+| `{pluginversion}` | HSRTimer 插件版本 |
 | `{collection}` | 当前 Level Collections 地图包名(或兜底) |
 | `{category}` | 当前类别显示名 |
 | `{gametime}` | 当前游戏时间 |

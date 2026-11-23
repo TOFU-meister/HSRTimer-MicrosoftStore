@@ -28,6 +28,8 @@ $BepInExDir = 'C:\Path\To\HumanFallFlat\BepInEx'
 公開を進める指示が出た段階で、確認したコミットを `v0.1.0-pre` タグの対象にし、GitHub Releases で **Pre-release** を選びます。[日本語のリリースノート](releases/v0.1.0-pre.md) と、実機で確認した ZIP を添付します。
 
 
+カスタムテキストの `{version}` はゲーム版（例 `v1096141`）、`{pluginversion}` は HSRTimer 版（`0.1.0-pre`）です。従来のレイアウトでプラグイン版を表示したい場合は `{pluginversion}` に変更します。
+
 ## 機能の状態
 
 | 機能 | このブランチの状態 | Windows で確認する内容 |

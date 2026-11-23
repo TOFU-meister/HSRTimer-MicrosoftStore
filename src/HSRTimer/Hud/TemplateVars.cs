@@ -50,6 +50,12 @@ namespace HSRTimer
                 case "time":
                     return System.DateTime.Now.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
                 case "version":
+#if STORE_IL2CPP
+                    return StoreGameVersion.Display;
+#else
+                    return PluginInfo.RuntimeVersion;
+#endif
+                case "pluginversion":
                     return PluginInfo.RuntimeVersion;
                 case "gametime":
                     return TimeFormatter.Format(gameTime);

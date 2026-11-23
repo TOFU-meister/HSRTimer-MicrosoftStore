@@ -1,5 +1,12 @@
 namespace UnityEngine
 {
+    public class TextAsset { public string text; }
+
+    public static class Resources
+    {
+        public static T Load<T>(string path) where T : class => null;
+    }
+
     public static class Time
     {
         public static float fixedTime;

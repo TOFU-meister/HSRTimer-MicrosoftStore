@@ -261,4 +261,14 @@ Equal(true, VersionUtil.Compare(stable, currentPre) > 0, "Stable release sorts a
 Equal(false, AtomFeed.TryParseLatest(Feed(storeRepository + "/releases/tag/v" + PluginInfo.RuntimeVersion),
     out _, out releaseError, storeRepository), "The test release is not a stable update candidate");
 
+string BuildVersion(string revision) => "<VersionNumber><majorVersion>1</majorVersion><minorVersion>0</minorVersion>"
+    + "<build>96</build><revision>" + revision + "</revision></VersionNumber>";
+Equal(true, StoreGameVersion.TryFormat(BuildVersion("1419"), out string gameVersion), "Read game resource XML");
+Equal("v1096141", gameVersion, "Match the reference timer's display");
+Equal(true, StoreGameVersion.TryFormat(BuildVersion("1"), out gameVersion), "Short resource version");
+Equal("v10961", gameVersion, "Short version remains intact");
+Equal(false, StoreGameVersion.TryFormat(BuildVersion("invalid"), out _), "Reject nonnumeric version components");
+Equal(false, StoreGameVersion.TryFormat("<VersionNumber />", out _), "Reject missing version components");
+Equal(false, StoreGameVersion.TryFormat("<VersionNumber>", out _), "Reject malformed version XML");
+
 Console.WriteLine("Store logic checks passed.");

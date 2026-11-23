@@ -199,7 +199,8 @@ color_b = CCCCCCCF
 |----------|---------------|
 | `{date}` | Current date (`YYYY-MM-DD`) |
 | `{time}` | Current time (`HH:MM:SS`) |
-| `{version}` | Plugin version |
+| `{version}` | Human: Fall Flat game version (Store build), or `?` when unavailable |
+| `{pluginversion}` | HSRTimer version |
 | `{collection}` | Active Level Collections collection name (or fallback) |
 | `{category}` | Active category display name |
 | `{gametime}` | Current game time |
