@@ -2,7 +2,11 @@
 
 Windows x64 の **Human: Fall Flat（Microsoft Store／Xbox PC アプリ版）** 向けの非公式移植です。ゲーム時間の自動計測、Timer HUD、タグ別の PB、サブセグメント比較、マーカーを利用できます。
 
-テスト版のバージョンは **0.1.0-pre** です。[テスト版の導入説明](docs/releases/README-v0.1.0-pre.txt)
+開発版は **0.1.1-pre**、公開済みの初回テスト版は **0.1.0-pre** です。[テスト版の導入説明](docs/releases/README-v0.1.0-pre.txt)
+
+## バージョン管理
+
+Store 版は `0.x.x-pre` を使い、各プラグインで独立して進めます。先頭の `0` と末尾の `-pre` はプレリリース期間中固定です。小機能、バグ修正、UI 調整は3番目を進めます。大きな機能追加、仕様変更、大規模な修正は2番目を進め、3番目を `0` に戻します。バージョン更新時は `PluginInfo.cs` と `.csproj` の番号をそろえます。公開時のタグは `v<version>`、配布 ZIP は `HSRTimer-MicrosoftStore-v<version>.zip` とします。
 
 ## 対応環境
 

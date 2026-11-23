@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using HSRTimer;
 using Multiplayer;
 using UnityEngine;
@@ -253,7 +254,13 @@ Equal(false, AtomFeed.TryParseLatest("<html />", out _, out releaseError, storeR
 Equal(true, AtomFeed.TryParseLatest(Feed(upstreamRelease, storeRelease), out var storeUpdate, out _, storeRepository), "Select only dedicated Store release");
 Equal(storeRelease, storeUpdate.Url, "Store release link");
 
-Equal("0.1.0-pre.1", PluginInfo.RuntimeVersion, "Store runtime version");
+string projectPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
+    "../../../../../src/HSRTimer/HSRTimer.csproj"));
+var storeVersionNode = System.Xml.Linq.XDocument.Load(projectPath).Root.Elements("PropertyGroup")
+    .Single(group => (string)group.Element("TargetFramework") == "net6.0").Element("Version");
+Equal((string)storeVersionNode, PluginInfo.RuntimeVersion, "Store runtime and project versions agree");
+Equal(true, System.Text.RegularExpressions.Regex.IsMatch(PluginInfo.RuntimeVersion,
+    @"^0\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-pre$"), "Store version format");
 var tabs = new SettingsPanelTabRegistry();
 int saves = 0, draws = 0, deactivations = 0;
 string tabLanguage = null;
@@ -285,8 +292,10 @@ Equal(1, saves, "save once despite duplicate registration");
 Equal(1, trailingSaves, "faulty subscriber isolated");
 
 Equal(true, VersionUtil.TryParse(PluginInfo.RuntimeVersion, out var currentPre), "Recognise running prerelease");
-Equal("pre.1", currentPre.Pre, "Keep prerelease suffix");
-Equal(true, VersionUtil.TryParse("v0.1.0", out var stable), "Recognise stable counterpart");
+Equal("pre", currentPre.Pre, "Keep prerelease suffix");
+Equal(true, VersionUtil.TryParse("0.1.0-pre.1", out var previousPre), "Previous development version");
+Equal(true, VersionUtil.Compare(currentPre, previousPre) > 0, "Current version advances past prior build");
+Equal(true, VersionUtil.TryParse("v0.1.1", out var stable), "Recognise stable counterpart");
 Equal(true, VersionUtil.Compare(stable, currentPre) > 0, "Stable release sorts after the running prerelease");
 Equal(false, AtomFeed.TryParseLatest(Feed(storeRepository + "/releases/tag/v" + PluginInfo.RuntimeVersion),
     out _, out releaseError, storeRepository), "The test release is not a stable update candidate");

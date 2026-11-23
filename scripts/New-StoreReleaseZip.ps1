@@ -14,7 +14,14 @@ if ($env:OS -ne 'Windows_NT') {
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $BepInExDir = (Resolve-Path -LiteralPath $BepInExDir).Path
 $OutputDirectory = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutputDirectory)
-$ZipName = 'HSRTimer-MicrosoftStore-v0.1.0-pre.zip'
+$Project = Join-Path $RepoRoot 'src/HSRTimer/HSRTimer.csproj'
+[xml] $ProjectXml = Get-Content -LiteralPath $Project -Raw
+$VersionNode = $ProjectXml.SelectSingleNode("/Project/PropertyGroup[TargetFramework='net6.0']/Version")
+$Version = $VersionNode.InnerText
+if ($Version -cnotmatch '^0\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-pre$') {
+    throw 'The Store project version must use 0.x.x-pre.'
+}
+$ZipName = "HSRTimer-MicrosoftStore-v$Version.zip"
 $FinalZip = Join-Path $OutputDirectory $ZipName
 if (Test-Path -LiteralPath $FinalZip) {
     throw "The output ZIP already exists: $FinalZip"
@@ -26,18 +33,18 @@ $PackageDir = Join-Path $TempRoot 'package'
 $TempZip = Join-Path $TempRoot $ZipName
 try {
     New-Item -ItemType Directory -Path $BuildDir, $PackageDir | Out-Null
-    $Project = Join-Path $RepoRoot 'src/HSRTimer/HSRTimer.csproj'
     & dotnet build $Project -c Release -t:Rebuild -o $BuildDir '-p:StoreIl2Cpp=true' '-p:StorePreview=false' "-p:BepInExDir=$BepInExDir"
     if ($LASTEXITCODE -ne 0) { throw 'The Store Release build failed.' }
 
     $Dll = Join-Path $BuildDir 'HSRTimer.dll'
-    if ([Diagnostics.FileVersionInfo]::GetVersionInfo($Dll).ProductVersion -ne '0.1.0-pre') {
-        throw 'The built DLL does not report Store release version 0.1.0-pre.'
+    if ([Diagnostics.FileVersionInfo]::GetVersionInfo($Dll).ProductVersion -cne $Version) {
+        throw "The built DLL does not report Store release version $Version."
     }
 
     Copy-Item -LiteralPath $Dll -Destination $PackageDir
     Copy-Item -LiteralPath (Join-Path $RepoRoot 'LICENSE') -Destination $PackageDir
-    Copy-Item -LiteralPath (Join-Path $RepoRoot 'docs/releases/README-v0.1.0-pre.txt') -Destination (Join-Path $PackageDir 'README.txt')
+    $Readme = [IO.File]::ReadAllText((Join-Path $RepoRoot 'docs/releases/README-store-template.txt'))
+    [IO.File]::WriteAllText((Join-Path $PackageDir 'README.txt'), $Readme.Replace('{{VERSION}}', $Version))
 
     $Expected = @('HSRTimer.dll', 'LICENSE', 'README.txt')
     $Files = @($Expected | ForEach-Object { Join-Path $PackageDir $_ })
