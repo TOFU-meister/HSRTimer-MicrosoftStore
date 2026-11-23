@@ -108,6 +108,19 @@ try
     Equal(true, warning.Contains(blocked) && warning.Contains(fallback), "Fallback logs both paths and failure");
     Equal("[hud]\nsize = 99\n", File.ReadAllText(original), "Fallback settings preserved across both selections");
     Equal(directory, PersistenceService.PluginDir, "Process data root remains fixed");
+    if (!OperatingSystem.IsWindows())
+    {
+        string packageTarget = Path.Combine(testRoot, "package-target");
+        Directory.CreateDirectory(packageTarget);
+        string redirectedPackage = Path.Combine(testRoot, "package-link");
+        Directory.CreateSymbolicLink(redirectedPackage, packageTarget);
+        string redirectedConfig = Path.Combine(redirectedPackage, "BepInEx", "config");
+        Equal(fallback, StoreDataPolicy.SelectDataRoot(redirectedConfig, () => fallback, message => warning = message),
+            "A redirected package ancestor triggers fallback");
+        Equal(true, warning.Contains("reparse point") && warning.Contains(redirectedPackage),
+            "The rejected ancestor is logged");
+        Equal(0, Directory.GetFileSystemEntries(packageTarget).Length, "Fallback does not write through the redirect");
+    }
 
     string meta = Path.Combine(directory, "meta.json");
     string samples = Path.Combine(directory, "sample.jsonl");

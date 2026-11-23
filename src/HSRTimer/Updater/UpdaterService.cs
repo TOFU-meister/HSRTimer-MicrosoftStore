@@ -1,5 +1,6 @@
 #if STORE_IL2CPP
 using BepInEx.Unity.IL2CPP.Utils;
+using Il2CppInterop.Runtime.Attributes;
 using System.Linq;
 #endif
 using System;
@@ -57,7 +58,10 @@ namespace HSRTimer
 
         // ── public state (read by the panel every frame / console on demand) ──
 
-        /// <summary>Current phase of the update flow.</summary>
+        /// <summary>Current phase of the update flow, used on the managed side.</summary>
+#if STORE_IL2CPP
+        [HideFromIl2Cpp]
+#endif
         public UpdatePhase Phase { get; private set; } = UpdatePhase.Idle;
 
         /// <summary>True after a successful check that found no newer release.</summary>
@@ -79,6 +83,9 @@ namespace HSRTimer
         public bool ErrorFromCheck { get; private set; }
 
         /// <summary>The newer release found by the last check, or null.</summary>
+#if STORE_IL2CPP
+        [HideFromIl2Cpp]
+#endif
         public ReleaseInfo PendingRelease { get; private set; }
 
         /// <summary>Download progress 0–100 while <see cref="Phase"/> is Downloading.</summary>
@@ -245,6 +252,9 @@ namespace HSRTimer
         /// message) to help diagnose blocked/rate-limited responses. Progress is
         /// pushed to <see cref="ProgressPercent"/> when <paramref name="trackProgress"/> is set.
         /// </summary>
+#if STORE_IL2CPP
+        [HideFromIl2Cpp]
+#endif
         private IEnumerator FetchBytes(string url, int timeout, FetchOutcome outcome, bool trackProgress)
         {
             UnityWebRequest req = null;
@@ -321,6 +331,9 @@ namespace HSRTimer
 
         // ── check ─────────────────────────────────────────────────────────────
 
+#if STORE_IL2CPP
+        [HideFromIl2Cpp]
+#endif
         private IEnumerator CheckRoutine()
         {
             IsBusy = true;
@@ -343,6 +356,9 @@ namespace HSRTimer
                 Phase = UpdatePhase.Idle; // error / up-to-date land here
         }
 
+#if STORE_IL2CPP
+        [HideFromIl2Cpp]
+#endif
         private void ProcessCheckOutcome(FetchOutcome outcome)
         {
             try

@@ -102,7 +102,7 @@ namespace HSRTimer
                 try
                 {
                     if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
-                        throw new IOException("Store write path crosses a link: " + current);
+                        throw new IOException("Store write path crosses a reparse point (Windows-managed redirection or link): " + current);
                 }
                 catch (FileNotFoundException) { }
                 catch (DirectoryNotFoundException) { }
