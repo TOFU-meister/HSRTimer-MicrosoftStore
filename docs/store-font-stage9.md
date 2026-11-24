@@ -99,3 +99,55 @@ Bold強制指定がプレビューとの条件差を生んでいたことはコ�
 別ウェイトと混在していない初期のJP Regular（14,773,004 bytes、SHA256 `6069e139862ba348e653f3aabafb7b69401059c6c22f8a05462cc69b1933d2fc`）をUnityPyで調べました。シリアライズされていたのは `NotoSansCJKjp-Regular`、`Font Texture`、`Font Material` の各1件です。Fontの `m_FontData` は16,467,736 bytesで、元OTFのSHA256と一致しました。`m_FontNames` は `Noto Sans CJK JP`、`m_FallbackFonts` は空、付属マニフェストの外部依存は0件でした。
 
 約30 MBになったJP Regular／Boldの実体は取得できていません。旧方式の相互依存と容量差から、同じファミリー名を持つ別ウェイトが暗黙の依存として各Bundle内に取り込まれた可能性があります。外部依存0件はBundle間参照の結果です。新方式のEditor検証はロード可能なFont数を数えます。シリアライズされた全フォントデータのバイト単位の比較が必要な場合は、新旧Bundleを同じ方法で解析します。
+
+## 第9段階の完了記録
+
+### Windows実機 — 生成と再ロード
+
+生成スクリプトは `cc267fc4312b091f34dc40600a131dfdf403431b` に対し、Windows側で `SavedPercent` の `if` を `$()` で囲った状態で検証しました。同じ修正を正式に取り込みました。環境は Windows PowerShell 5.1.26100.8875、Unity Editor 2019.4.24f1、StandaloneWindows64、`embedded` です。
+
+| フォント | 旧容量（bytes） | 新容量（bytes） | 削減（bytes） |
+| --- | ---: | ---: | ---: |
+| Noto Sans CJK JP Regular | 30,127,272 | 14,772,172 | 15,355,100（50.97%） |
+| Noto Sans CJK JP Bold | 30,127,291 | 15,354,921 | 14,772,370（49.03%） |
+| Noto Sans CJK SC Regular | 14,732,889 | 14,732,552 | 337 |
+| Roboto Regular | 302,793 | 302,789 | 4 |
+| Roboto Mono Regular | 84,507 | 84,546 | −39 |
+| **合計** | **75,374,752（71.88 MiB）** | **45,246,980（43.15 MiB）** | **30,127,772** |
+
+全5件の独立生成と単独ロードに成功しました。各BundleのFont数は1、外部Bundle依存は0、各32 MiB以下でした。別プロジェクトでの5件同時ロードにも成功し、Noto 3種はサンプル字形103/103、Roboto 2種は10/10、Editorは全6回正常終了しました。両CSVの容量とSHA256は一致しました。ハッシュの確認範囲はCSV相互の照合です。
+
+初回はJP Regularの生成直後に止まったように見え、再実行では正常完了しました。原因は未特定です。PowerShellには各フォントの開始・検証完了、同時ロード検証、集約結果を表示するようにしました。
+
+### Windows実機 — ゲーム内表示
+
+環境は Human Fall Flat Microsoft Store v1696732、Unity 2019.4.24f1、BepInEx 6.0.0-be.793、.NET 6.0.7、HSRTimer 0.1.3-pre（DLLソース `1c7280cac9d396d66ae8f4e357646329605d982c`）です。
+
+- Group A（Noto 3種）とGroup B（Roboto 2種）で読み込み、18pxのHUDにNormal／Legacy HUD (Bold)の両方を適用しました。左上のHUDでウェイトや文字間隔の違いと、Roboto Monoの等幅表示を目視確認しました。
+- 標準IMGUIへの復帰と解放を確認しました。解放後の残存スロット、復旧待ちはいずれも0でした。両テストともError 0件、Warning 76件（従来の起動時警告）でした。
+- ユーザーによるステージ移動とOne Key Retryでは一時適用フォントが維持されました。フォント消失を伴う自動復旧の実機検証は今回の範囲外です。
+
+JP Regularの18pxにおけるHUDの `GUIStyle.CalcSize` 幅です。
+
+| サンプル | 旧Normal | 旧Bold | 新Normal | 新Bold |
+| --- | ---: | ---: | ---: | ---: |
+| `0123456789` | 100 | 110 | 100 | 100 |
+| `IIII WWWW` | 88 | 92 | 88 | 88 |
+| `Game Time: 00:00.000` | 185 | 197 | 185 | 185 |
+| `11:11.111` | 80 | 89 | 80 | 80 |
+| `88:88.888` | 80 | 89 | 80 | 80 |
+
+新JP RegularのBoldとNormalはこの表の全サンプルで同幅でした。全5種で `11:11.111` と `88:88.888` が同幅であり、今回調べた文字列では全文字列の幅と個別の文字幅の合計も一致しました。適用先は `HUD applied` のフォント名・Instance ID、計測は `HUD after row` 等で確認します。スクリーンショットの右側に写っているのはIMGUI comparisonです。Candidateはスクロール領域外にあり、画像からCandidateと左上HUDの視覚的一致は判定できません。
+
+### 自動テストと残課題
+
+構文だけを確認する場合は、対象とするPowerShellで以下を実行します。Unityは起動しません。
+
+```powershell
+powershell.exe -NoProfile -File .\tests\StoreFontBundles\Test-ScriptSyntax.ps1
+pwsh -NoProfile -File .\tests\StoreFontBundles\Test-ScriptSyntax.ps1
+```
+
+PowerShell 7のモックで両モード、既存出力先の保護、入力ハッシュ不一致、Editor異常終了時のログ保持を検証しました。StoreLogic、Input Overlay連携スモーク、x64 Releaseビルドと版番号・GUID・埋め込みLICENSE検査も通過しました。実機の結果は上記embeddedの検証です。PowerShell 7による実Editor起動と、非圧縮Bundleの実生成はこの完了確認の対象外です。
+
+約30 MBの旧Bundleの内部構成と実際の字形参照元は未確定です。今回計測したサンプルの一致は、全字形・全文字列の一致を保証しません。以上で第9段階の技術検証を完了とし、正式なフォント選択UI、設定保存、自動復元は第10段階に残します。

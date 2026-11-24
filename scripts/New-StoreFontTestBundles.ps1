@@ -64,7 +64,10 @@ function Invoke-FontUnity([string]$Project, [string]$Method, [string]$BundleDire
 }
 
 $bundleNames = @{}
+$index = 0
 foreach ($font in $fonts) {
+    $index++
+    Write-Host ("[{0}/{1}] Starting standalone build: {2}" -f $index, $fonts.Count, $font.file)
     $stem = [IO.Path]::GetFileNameWithoutExtension($font.file).ToLowerInvariant()
     $project = Join-Path $projects $stem
     New-FontProject $project
@@ -93,8 +96,10 @@ foreach ($font in $fonts) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Missing bundle: $path. See $log" }
     $bundleNames[$font.file] = (Copy-Item -LiteralPath $path -Destination $build -PassThru).FullName
     Copy-Item -LiteralPath "$path.manifest" -Destination $build
+    Write-Host ("[{0}/{1}] Standalone build verified: {2}" -f $index, $fonts.Count, $name)
 }
 
+Write-Host "Starting concurrent Editor verification for $($fonts.Count) bundles."
 $verificationProject = Join-Path $output 'verify'
 New-FontProject $verificationProject
 $log = Join-Path $output 'Unity.log'
@@ -104,6 +109,7 @@ if (-not (Select-String -LiteralPath $log -Pattern $expectedVerification -Simple
     throw "Unity did not record successful bundle verification. See $log"
 }
 
+Write-Host "Concurrent Editor verification passed. Collecting bundles and CSV reports."
 $result = foreach ($font in $fonts) {
     $group = Join-Path $output ("group-" + $font.group)
     if (-not (Test-Path -LiteralPath $group)) { New-Item -ItemType Directory -Path $group | Out-Null }
@@ -137,7 +143,7 @@ $comparison = foreach ($font in $fonts) {
         PreviousBytes = $previous
         NewBytes = $item.Bytes
         SavedBytes = $saved
-        SavedPercent = if ($previous) { [math]::Round(100 * $saved / $previous, 2) }
+        SavedPercent = $(if ($previous) { [math]::Round(100 * $saved / $previous, 2) })
         SHA256 = $item.SHA256
         FontCount = 1
         DependencyCount = 0
@@ -146,3 +152,4 @@ $comparison = foreach ($font in $fonts) {
     }
 }
 $comparison | Export-Csv -LiteralPath (Join-Path $output 'bundle-comparison.csv') -NoTypeInformation -Encoding UTF8
+Write-Host "Completed $($result.Count) bundles. Reports: $output"
