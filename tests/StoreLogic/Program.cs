@@ -240,6 +240,55 @@ try
         settingsModel.Load();
         Equal(enabled, settingsModel.AutomaticPbBackup, "Backup preference persists after reload");
     }
+    Equal(false, new SettingsModel().HudFont.IsExternal, "new HUD font preference uses IMGUI");
+    const string fontFile = "Missing Font.bundle";
+    const string fontAsset = "assets/fonts/Example-Regular.otf";
+    foreach (var style in new[] { StoreHudFontStyle.Normal, StoreHudFontStyle.Bold })
+    {
+        Equal(true, settingsModel.TrySetExternalHudFont(fontFile, fontAsset, style), "valid external preference");
+        settingsModel.Save();
+        settingsModel = new SettingsModel();
+        settingsModel.Load();
+        Equal(true, settingsModel.HudFont.IsExternal, "missing files remain a valid persisted preference");
+        Equal(fontFile, settingsModel.HudFont.BundleFileName, "bundle filename round trips");
+        Equal(fontAsset, settingsModel.HudFont.AssetName, "virtual asset path round trips");
+        Equal(style, settingsModel.HudFont.Style, "font style round trips");
+        Equal("001", settingsModel.RetryLevelOverride, "font save preserves unrelated settings");
+    }
+
+    foreach (string bundle in new[] { "", "../test.bundle", @"..\test.bundle", "/test.bundle",
+        @"C:\test.bundle", "C:test.bundle", "fonts/test.bundle", "test.bundle:stream", "CON.bundle", "test.ttf" })
+        Equal(false, settingsModel.TrySetExternalHudFont(bundle, fontAsset, StoreHudFontStyle.Normal), "reject invalid bundle: " + bundle);
+    foreach (string asset in new[] { "", "../font.otf", "assets/../font.otf", "assets/./font.otf",
+        "assets//font.otf", @"/font.otf", @"assets\font.otf", "font.otf\nmode=external" })
+        Equal(false, settingsModel.TrySetExternalHudFont(fontFile, asset, StoreHudFontStyle.Normal), "reject invalid asset: " + asset);
+    Equal(fontFile, settingsModel.HudFont.BundleFileName, "invalid setting attempts retain previous selection");
+
+    string[] invalidFontSettings = {
+        "[settings]\nauto_reset=true\n",
+        "[HudFont]\nmode=42\nbundle=valid.bundle\nasset=test.otf\n",
+        "[HudFont]\nmode=external\nbundle=../test.bundle\nasset=test.otf\n",
+        "[HudFont]\nmode=external\nbundle=valid.bundle\nasset=\n",
+        "[HudFont]\nmode=external\nbundle=valid.bundle\nasset=assets/../test.otf\n",
+    };
+    foreach (var contents in invalidFontSettings)
+    {
+        settingsModel.TrySetExternalHudFont(fontFile, fontAsset, StoreHudFontStyle.Bold);
+        File.WriteAllText(iniPath, contents);
+        settingsModel.Load();
+        Equal(false, settingsModel.HudFont.IsExternal, "invalid or missing preference resets on reload");
+    }
+
+    File.WriteAllText(iniPath, "[HudFont]\nasset=assets/fonts/test.otf\nstyle=9\nbundle=valid.bundle\nmode=external\n");
+    settingsModel.Load();
+    Equal(true, settingsModel.HudFont.IsExternal, "read preferences independent of key order");
+    Equal(StoreHudFontStyle.Normal, settingsModel.HudFont.Style, "unknown style defaults to Normal");
+    settingsModel.ResetHudFont();
+    settingsModel.Save();
+    settingsModel.Load();
+    Equal(false, settingsModel.HudFont.IsExternal, "explicit reset persists");
+    Equal(true, settingsModel.HudFont.BundleFileName == null && settingsModel.HudFont.AssetName == null,
+        "reset drops external identity");
     Equal(true, SaveIl(offIl, "NoBackup", 1500, keepBackup: settingsModel.AutomaticPbBackup), "First OFF PB save");
     Equal(true, SaveIl(offIl, "NoBackup", 1400, keepBackup: false), "Improved OFF PB save");
     Equal(false, Directory.Exists(offIl + ".previous"), "OFF creates no previous backup");
@@ -406,6 +455,8 @@ void FontClick(string text)
     StoreFontDiagnostics.Draw(new UnityEngine.GUIStyle(), new UnityEngine.GUIStyle());
 }
 
+var persistentHudSettings = new SettingsModel();
+ConfigService.Instance = new ConfigService { Settings = persistentHudSettings };
 Equal(false, StoreFontDiagnostics.IsApplied, "IMGUI remains default");
 FontClick("Font Diagnostics");
 FontClick("List Unity OS fonts");
@@ -696,6 +747,9 @@ try
     FontClick("I checked the candidate visually");
     FontClick("Apply to Timer HUD for this session");
     Equal(true, ReferenceEquals(first.Native.Font, StoreFontDiagnostics.ActiveFont()), "selected first of same-named fonts");
+    Equal(false, persistentHudSettings.HudFont.IsExternal, "session apply does not persist a default selection");
+    persistentHudSettings.TrySetExternalHudFont("saved.bundle", "assets/fonts/saved.otf", StoreHudFontStyle.Bold);
+    var persistentHudFont = persistentHudSettings.HudFont;
     SelectFixture(1);
     Equal(true, ReferenceEquals(first.Native.Font, StoreFontDiagnostics.ActiveFont()), "preview selection leaves HUD unchanged");
     FontClick("I checked the candidate visually");
@@ -718,6 +772,8 @@ try
     FontClick("Restore IMGUI / release probe fonts");
     Equal(false, StoreFontDiagnostics.IsApplied, "explicit release restores IMGUI after switching");
     Equal(0, StoreFontDiagnostics.PerformanceSnapshot().Bundles, "no bundles held after release");
+    Equal(true, ReferenceEquals(persistentHudFont, persistentHudSettings.HudFont),
+        "session switching and release do not change saved intent");
     foreach (var fixture in fixtures)
         Equal(1, fixture.Native.Unloads, "each loaded fixture released once");
 

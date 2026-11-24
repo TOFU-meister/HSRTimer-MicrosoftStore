@@ -44,6 +44,19 @@ namespace HSRTimer
 
         // ── HUD ──
         public bool ShowHud = true;               // R2.5.1
+#if STORE_IL2CPP
+        internal StoreHudFontPreference HudFont { get; private set; } = StoreHudFontPreference.Imgui;
+
+        internal bool TrySetExternalHudFont(string bundle, string asset, StoreHudFontStyle style)
+        {
+            if (!StoreHudFontPreference.TryExternal(bundle, asset, style, out var preference))
+                return false;
+            HudFont = preference;
+            return true;
+        }
+
+        internal void ResetHudFont() => HudFont = StoreHudFontPreference.Imgui;
+#endif
 
         // The Real Time and Wake Up Time rows are no longer separate settings:
         // they are regular layout rows shown/hidden by placing them in (or
@@ -116,10 +129,15 @@ namespace HSRTimer
         private const string MarkersSection = "Markers";
         private const string PresetsSection = "Presets";
 
+#if STORE_IL2CPP
+        private const string HudFontSection = "HudFont";
+#endif
+
         public void Load()
         {
 #if STORE_IL2CPP
             AutomaticPbBackup = false;
+            string fontMode = null, fontBundle = null, fontAsset = null, fontStyle = null;
 #endif
             foreach (var p in PersistenceService.Read(PersistenceService.PathFor("settings.ini")))
             {
@@ -139,7 +157,22 @@ namespace HSRTimer
                 {
                     ApplyPresets(p.Key, p.Value);
                 }
+#if STORE_IL2CPP
+                else if (p.Section == HudFontSection)
+                {
+                    switch (p.Key)
+                    {
+                        case "mode": fontMode = p.Value; break;
+                        case "bundle": fontBundle = p.Value; break;
+                        case "asset": fontAsset = p.Value; break;
+                        case "style": fontStyle = p.Value; break;
+                    }
+                }
+#endif
             }
+#if STORE_IL2CPP
+            HudFont = StoreHudFontPreference.Read(fontMode, fontBundle, fontAsset, fontStyle);
+#endif
         }
 
         private void Apply(string key, string value)
@@ -330,6 +363,15 @@ namespace HSRTimer
                     new KeyValuePair<string, IDictionary<string, string>>(SubsegmentSection, sub),
                     new KeyValuePair<string, IDictionary<string, string>>(MarkersSection, markers),
                     new KeyValuePair<string, IDictionary<string, string>>(PresetsSection, presets),
+#if STORE_IL2CPP
+                    new KeyValuePair<string, IDictionary<string, string>>(HudFontSection, new Dictionary<string, string>
+                    {
+                        ["mode"] = HudFont.IsExternal ? "external" : "imgui",
+                        ["bundle"] = HudFont.BundleFileName ?? "",
+                        ["asset"] = HudFont.AssetName ?? "",
+                        ["style"] = HudFont.Style == StoreHudFontStyle.Bold ? "bold" : "normal",
+                    }),
+#endif
                 },
                 "HSRTimer settings. Lines of the form 'key = value'. Bad lines are ignored.");
         }

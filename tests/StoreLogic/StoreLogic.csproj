@@ -31,6 +31,7 @@
     <Compile Include="../../src/HSRTimer/Hud/StoreFontDiagnostics.cs" />
     <Compile Include="../../src/HSRTimer/Hud/StoreFontBundle.cs" />
     <Compile Include="../../src/HSRTimer/Config/SettingsModel.cs" />
+    <Compile Include="../../src/HSRTimer/Config/StoreHudFontPreference.cs" />
     <Compile Include="../../src/HSRTimer/Core/RetryTargetResolver.cs" />
   </ItemGroup>
 </Project>
