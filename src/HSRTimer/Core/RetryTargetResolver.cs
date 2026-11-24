@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using HumanAPI;
 
 namespace HSRTimer
@@ -10,7 +11,8 @@ namespace HSRTimer
     /// Accepted inputs:
     /// - the game's English localized level name (case-insensitive) for a
     ///   BuiltIn or EditorPick level, e.g. "Intro", "Power Plant", "Aztec";
-    /// - a Steam Workshop level numeric id (loaded in
+    /// - on Store, plcc absolute IDs for BuiltIn and EditorPick levels;
+    /// - on Steam, a Workshop level numeric id (loaded in
     ///   <c>WorkshopRepository.levelRepo</c> as Subscription).
     ///
     /// The resolver intentionally keeps workshop targeting id-based: name
@@ -29,13 +31,73 @@ namespace HSRTimer
 
             string trimmed = input.Trim();
 
-            // Numeric input is always treated as a Workshop level id.
-            if (ulong.TryParse(trimmed, out ulong workshopId))
-                return TryFindWorkshop(workshopId, out levelId, out levelType);
+#if STORE_IL2CPP
+            const NumberStyles numericStyle = NumberStyles.None;
+#else
+            const NumberStyles numericStyle = NumberStyles.Integer;
+#endif
+            if (ulong.TryParse(trimmed, numericStyle, CultureInfo.InvariantCulture, out ulong numericId))
+            {
+#if STORE_IL2CPP
+                return TryFindStoreLevel(numericId, out levelId, out levelType);
+#else
+                return TryFindWorkshop(numericId, out levelId, out levelType);
+#endif
+            }
 
+#if STORE_IL2CPP
+            if (MatchesRepriseAlias(trimmed)
+                && TryFindStoreLevel(12, out levelId, out levelType))
+                return true;
+#endif
             return TryFindLevelByName(trimmed, out levelId, out levelType);
         }
 
+#if STORE_IL2CPP
+        private const ulong EditorPickOffset = 100;
+
+        private static bool TryFindStoreLevel(ulong retryId, out ulong levelId, out WorkshopItemSource levelType)
+        {
+            levelId = 0;
+            levelType = WorkshopItemSource.NotSpecified;
+            var game = Game.instance;
+            if (game == null || retryId >= 2 * EditorPickOffset)
+                return false;
+
+            if (retryId >= EditorPickOffset)
+            {
+                var levels = game.editorPickLevels;
+                int index = (int)(retryId - EditorPickOffset);
+                if (levels == null || index >= levels.Length || string.IsNullOrWhiteSpace(levels[index]))
+                    return false;
+
+                levelId = (ulong)index;
+                levelType = WorkshopItemSource.EditorPick;
+                return true;
+            }
+
+            var builtInLevels = game.levels;
+            int builtInIndex = (int)retryId;
+            if (builtInLevels == null || builtInIndex >= builtInLevels.Length
+                || string.IsNullOrWhiteSpace(builtInLevels[builtInIndex]))
+                return false;
+
+            // The final campaign scene can be omitted from the selectable
+            // built-in count. Recognize only the exact known scene at ID 12.
+            bool reprise = builtInIndex == 12
+                && string.Equals(builtInLevels[builtInIndex], "Intro_Reprise", StringComparison.OrdinalIgnoreCase);
+            if (!reprise && (game.levelCount <= 0 || builtInIndex >= game.levelCount))
+                return false;
+
+            levelId = retryId;
+            levelType = WorkshopItemSource.BuiltIn;
+            return true;
+        }
+
+        private static bool MatchesRepriseAlias(string input)
+            => string.Equals(input, "Reprise", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(input, "Intro_Reprise", StringComparison.OrdinalIgnoreCase);
+#else
         private static bool TryFindWorkshop(ulong workshopId, out ulong levelId, out WorkshopItemSource levelType)
         {
             levelId = 0UL;
@@ -65,6 +127,8 @@ namespace HSRTimer
 
             return false;
         }
+
+#endif
 
         private static bool TryFindLevelByName(string name, out ulong levelId, out WorkshopItemSource levelType)
         {

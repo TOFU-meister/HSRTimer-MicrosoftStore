@@ -21,7 +21,7 @@
     <NoStdLib>false</NoStdLib>
     <DisableImplicitFrameworkReferences>false</DisableImplicitFrameworkReferences>
     <DefineConstants>$(DefineConstants);STORE_IL2CPP</DefineConstants>
-    <Version>0.1.2-pre</Version>
+    <Version>0.1.3-pre</Version>
     <StorePreview Condition="'$(StorePreview)' == ''">false</StorePreview>
     <DefineConstants Condition="'$(StorePreview)' == 'true'">$(DefineConstants);STORE_PREVIEW</DefineConstants>
     <OutputPath>bin/store/$(Configuration)/</OutputPath>

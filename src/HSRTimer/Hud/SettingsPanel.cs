@@ -623,11 +623,12 @@ namespace HSRTimer
             s.RetryLevelOverrideEnable = Toggle(loc.Get("SETTINGS_RETRY_LEVEL_OVERRIDE_ENABLE"), s.RetryLevelOverrideEnable);
             if (s.RetryLevelOverrideEnable)
             {
-                // Compact field: the label (a long "level name or Workshop ID"
-                // description) sits beside it, so a 220px field would push the
-                // row past the scroll view's right edge and spawn a horizontal
-                // scrollbar. Keep it short enough that label + field always fit.
+                // Keep the retry-map label and field within the scroll view.
+#if STORE_IL2CPP
+                s.RetryLevelOverride = TextFieldRow(loc.Get("SETTINGS_RETRY_LEVEL_OVERRIDE_STORE"), s.RetryLevelOverride, 130f);
+#else
                 s.RetryLevelOverride = TextFieldRow(loc.Get("SETTINGS_RETRY_LEVEL_OVERRIDE"), s.RetryLevelOverride, 130f);
+#endif
             }
             else
             {

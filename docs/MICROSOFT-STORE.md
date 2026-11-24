@@ -16,7 +16,7 @@ dotnet run --project .\tests\StoreLogic\StoreLogic.csproj -c Release
 
 ## Input Overlay の設定タブ
 
-HSRTimer Microsoft Store `0.1.2-pre` と TwilightInputOverlay Microsoft Store
+HSRTimer Microsoft Store `0.1.3-pre` と TwilightInputOverlay Microsoft Store
 `0.1.1-pre` を同時に導入すると、HSRTimer の設定に「Input Overlay」
 タブが追加されます。Overlay の設定とプリセットは Overlay の Documents
 フォルダーへ保存されます。
@@ -36,11 +36,11 @@ $BepInExDir = 'C:\Path\To\HumanFallFlat\BepInEx'
 .\scripts\New-StoreReleaseDll.ps1 -BepInExDir $BepInExDir -OutputDirectory .\release
 ```
 
-この開発版では `HSRTimer-v0.1.2-pre.dll` が生成されます。スクリプトは x64、アセンブリ名、プラグイン GUID、BepInEx の版番号、製品バージョン、LICENSE の埋め込みを確認します。配布先に出力するのは検証済みの DLL だけです。
+この開発版では `HSRTimer-v0.1.3-pre.dll` が生成されます。スクリプトは x64、アセンブリ名、プラグイン GUID、BepInEx の版番号、製品バージョン、LICENSE の埋め込みを確認します。配布先に出力するのは検証済みの DLL だけです。
 
 公開時は DLL を Release に添付し、著作権表示を含む [LICENSE](../LICENSE) の全文を Release 本文に掲載するか、別の `LICENSE` アセットとして添付します。DLL にも同じライセンス全文が埋め込まれています。対象コミットのタグは `v<version>` を使用し、Release は **Pre-release** に設定します。
 
-カスタムテキストの `{version}` はゲーム版（例 `v1096141`）、`{pluginversion}` は HSRTimer 版（例 `0.1.2-pre`）です。従来のレイアウトでプラグイン版を表示したい場合は `{pluginversion}` に変更します。
+カスタムテキストの `{version}` はゲーム版（例 `v1096141`）、`{pluginversion}` は HSRTimer 版（例 `0.1.3-pre`）です。従来のレイアウトでプラグイン版を表示したい場合は `{pluginversion}` に変更します。
 
 ## 機能の状態
 

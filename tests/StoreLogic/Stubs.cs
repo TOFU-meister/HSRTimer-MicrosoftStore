@@ -39,12 +39,14 @@ namespace Multiplayer
 }
 
 public enum GameState { Inactive, LoadingLevel, PlayingLevel, Paused }
-public enum WorkshopItemSource { BuiltIn }
+public enum WorkshopItemSource { BuiltIn, EditorPick, Subscription, NotSpecified }
 public class Game
 {
     public static Game instance;
     public GameState state;
     public int currentLevelNumber;
+    public string[] levels, editorPickLevels;
+    public int levelCount;
 }
 
 namespace HSRTimer
@@ -113,4 +115,30 @@ namespace BepInEx
 namespace BepInEx.Unity.IL2CPP
 {
     public class BasePlugin {}
+}
+
+namespace HumanAPI
+{
+    public class WorkshopLevelMetadata
+    {
+        public WorkshopItemSource levelType;
+        public ulong workshopId;
+        public string title;
+        public T TryCast<T>() where T : class => this as T;
+    }
+    public class BuiltinLevelMetadata : WorkshopLevelMetadata { public string internalName; }
+    public class WorkshopRepository
+    {
+        public static WorkshopRepository instance;
+        public WorkshopLevelMetadata[] levelRepo;
+    }
+}
+
+namespace HSRTimer
+{
+    public static class LevelIdentity
+    {
+        public static string EnglishLevelName(string term, string fallback)
+            => term == "LEVEL/Intro" ? "Mansion" : fallback;
+    }
 }

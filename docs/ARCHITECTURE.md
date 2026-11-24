@@ -368,7 +368,7 @@ override. When enabled, the one-key retry ignores the R6.4/current-level target
 selection and re-launches the level named in the associated text field. The
 input is either the game's English localized level name for a BuiltIn/EditorPick
 level (case-insensitive) or a loaded Steam Workshop numeric id; a numeric value
-is always treated as a Workshop id. Resolution uses `WorkshopRepository` plus
+on Mono is treated as a Workshop id. Store builds accept [plcc-style absolute IDs](RETRY-MAP-IDS.md) for Normal and Extra levels. Name resolution uses `WorkshopRepository` plus
 the game's English localization table, so it works even when the current game
 language is not English.
 

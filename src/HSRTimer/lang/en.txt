@@ -44,6 +44,7 @@ SETTINGS_FORCE_FRAME_TIMING_LOCKED:Locked while a run is in progress. Reset the 
 SETTINGS_RESTART_CLEARS_FORGIVABLE:Clear forgivable flags on pause-menu restart
 SETTINGS_RETRY_MIN_DWELL:Retry empty-scene dwell (s)
 SETTINGS_RETRY_LEVEL_OVERRIDE_ENABLE:Specify retry level
+SETTINGS_RETRY_LEVEL_OVERRIDE_STORE:Retry Map (Name or ID)
 SETTINGS_RETRY_LEVEL_OVERRIDE:Retry level (English name or Workshop ID)
 SETTINGS_SHOW_HUD:Show timer HUD
 SETTINGS_ONLY_RECORD_FIRST_WAKE_UP_TIME:Only record first wake-up time

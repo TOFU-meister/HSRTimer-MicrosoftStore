@@ -11,6 +11,34 @@ static void Equal<T>(T expected, T actual, string message)
         throw new InvalidOperationException($"{message}: expected {expected}, got {actual}");
 }
 
+Game.instance = new Game
+{
+    levels = new[] { "Intro", "Train", "Carry", "Mountain", "Demolition", "Castle", "Water",
+        "PowerPlant", "Aztec", "Dark", "Steam", "Ice", "Intro_Reprise", "Credits" },
+    levelCount = 12,
+    editorPickLevels = new[] { "Thermal", "Factory", null },
+};
+(bool Found, ulong Index, WorkshopItemSource Source) RetryTarget(string input)
+{
+    bool found = RetryTargetResolver.TryResolve(input, out ulong index, out var source);
+    return (found, index, source);
+}
+Equal((true, 0UL, WorkshopItemSource.BuiltIn), RetryTarget("0"), "Retry ID zero");
+Equal(RetryTarget("Mansion"), RetryTarget(" 0 "), "Mansion title matches zero");
+Equal(RetryTarget(" traIN "), RetryTarget("001"), "Existing names match numeric ID");
+Equal((true, 0UL, WorkshopItemSource.EditorPick), RetryTarget(" 100 "), "Extra ID offset");
+Equal(RetryTarget("Factory"), RetryTarget("101"), "Extra title and ID match");
+Equal((true, 12UL, WorkshopItemSource.BuiltIn), RetryTarget("12"), "Reprise outside selectable count");
+Equal(RetryTarget("12"), RetryTarget("Reprise"), "Reprise alias");
+Equal(RetryTarget("12"), RetryTarget("Intro_Reprise"), "Reprise internal scene alias");
+foreach (string value in new[] { null, "", "  ", "13", "99", "102", "199", "200", "-1", "-0",
+    "18446744073709551615", "18446744073709551616", "999999999999999999999999999" })
+    Equal(false, RetryTarget(value).Found, $"Invalid retry input '{value}'");
+Game.instance.levels[12] = "Credits";
+Equal(false, RetryTarget("12").Found, "Special case cannot launch unrelated scene");
+Game.instance = null;
+Equal(false, RetryTarget("0").Found, "Unavailable runtime catalog");
+
 long initialTick = GameClock.CurrentTick;
 for (int step = 1; step <= 180; step++)
 {
@@ -192,6 +220,18 @@ try
     settingsModel.AutomaticPbBackup = true;
     settingsModel.Load();
     Equal(false, settingsModel.AutomaticPbBackup, "Legacy settings without key reset to OFF");
+    settingsModel.RetryLevelOverride = "Train";
+    settingsModel.Save();
+    settingsModel = new SettingsModel();
+    settingsModel.Load();
+    Equal("Train", settingsModel.RetryLevelOverride, "Legacy retry name still loads");
+    settingsModel.RetryLevelOverrideEnable = true;
+    settingsModel.RetryLevelOverride = "001";
+    settingsModel.Save();
+    settingsModel = new SettingsModel();
+    settingsModel.Load();
+    Equal("001", settingsModel.RetryLevelOverride, "Retry ID saved and reloaded as entered");
+    Equal(true, settingsModel.RetryLevelOverrideEnable, "Existing retry setting preserved");
     foreach (bool enabled in new[] { true, false })
     {
         settingsModel.AutomaticPbBackup = enabled;
@@ -344,7 +384,7 @@ Equal(true, VersionUtil.TryParse(PluginInfo.RuntimeVersion, out var currentPre),
 Equal("pre", currentPre.Pre, "Keep prerelease suffix");
 Equal(true, VersionUtil.TryParse("0.1.0-pre.1", out var previousPre), "Previous development version");
 Equal(true, VersionUtil.Compare(currentPre, previousPre) > 0, "Current version advances past prior build");
-Equal(true, VersionUtil.TryParse("v0.1.2", out var stable), "Recognise stable counterpart");
+Equal(true, VersionUtil.TryParse("v0.1.3", out var stable), "Recognise stable counterpart");
 Equal(true, VersionUtil.Compare(stable, currentPre) > 0, "Stable release sorts after the running prerelease");
 Equal(false, AtomFeed.TryParseLatest(Feed(storeRepository + "/releases/tag/v" + PluginInfo.RuntimeVersion),
     out _, out releaseError, storeRepository), "The test release is not a stable update candidate");
