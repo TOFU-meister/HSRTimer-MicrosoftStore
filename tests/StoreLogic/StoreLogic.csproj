@@ -26,6 +26,8 @@
     <Compile Include="../../src/HSRTimer/Hud/ISettingsPanelTab.cs" />
     <Compile Include="../../src/HSRTimer/Hud/ILocalizableSettingsPanelTab.cs" />
     <Compile Include="../../src/HSRTimer/Hud/SettingsPanelTabRegistry.cs" />
+    <Compile Include="../../src/HSRTimer/Hud/StoreFrameWindow.cs" />
+    <Compile Include="../../src/HSRTimer/Hud/StorePerformance.cs" />
     <Compile Include="../../src/HSRTimer/Hud/StoreFontDiagnostics.cs" />
     <Compile Include="../../src/HSRTimer/Hud/StoreFontBundle.cs" />
     <Compile Include="../../src/HSRTimer/Config/SettingsModel.cs" />

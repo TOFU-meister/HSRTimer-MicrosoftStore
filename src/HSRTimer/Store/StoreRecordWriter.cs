@@ -47,6 +47,7 @@ namespace HSRTimer
         internal static bool TrySaveBetter(string root, string directory, long totalMs, string metadata,
             IReadOnlyDictionary<string, string> samples, bool keepBackup)
         {
+            using var measurement = new StorePerformance.Measurement(2);
             try
             {
                 string previous = directory + ".previous";

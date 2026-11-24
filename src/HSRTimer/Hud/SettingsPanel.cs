@@ -500,6 +500,7 @@ namespace HSRTimer
             // and (on request) download + install it.
             DrawUpdater(loc);
 #if STORE_IL2CPP
+            StorePerformance.Draw(_button, _small);
             StoreFontDiagnostics.Draw(_button, _small);
 #endif
         }

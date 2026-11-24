@@ -82,9 +82,15 @@ namespace HSRTimer
 
         private void OnGUI()
         {
+#if STORE_IL2CPP
+            if (Event.current.type != EventType.Repaint) return;
+#endif
             var cfg = ConfigService.Instance;
             if (cfg == null) return;
 
+#if STORE_IL2CPP
+            using var measurement = new StorePerformance.Measurement(1);
+#endif
             int size = cfg.Layout.FontSize;
             EnsureFont(size);
 #if STORE_IL2CPP
@@ -107,7 +113,11 @@ namespace HSRTimer
         }
 
 #if STORE_IL2CPP
-        private void Update() => StoreFontDiagnostics.Tick();
+        private void Update()
+        {
+            if (StorePerformance.Enabled) StorePerformance.Frame(ConfigService.Instance?.Settings.ShowHud == true);
+            StoreFontDiagnostics.Tick();
+        }
 
         private void ClearStoreFontStyles()
         {

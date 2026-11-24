@@ -51,6 +51,24 @@ namespace HSRTimer
         private static string _status = "Scan or probe to begin.";
         private static string _evidence;
 
+        internal readonly record struct PerformanceFont(string Source, int? FontId, int? AtlasId, int? Width, int? Height, int Bundles);
+
+        internal static PerformanceFont PerformanceSnapshot()
+        {
+            var candidate = _applied;
+            int bundles = Bundles.Count - CountPendingBundles();
+            if (candidate?.Font == null) return new PerformanceFont("IMGUI", null, null, null, null, bundles);
+            try
+            {
+                var material = candidate.Font.material;
+                var atlas = material == null ? null : material.mainTexture;
+                if (atlas != null)
+                    return new PerformanceFont(candidate.Source, candidate.Id, atlas.GetInstanceID(), atlas.width, atlas.height, bundles);
+            }
+            catch (Exception) { }
+            return new PerformanceFont(candidate.Source, candidate.Id, null, null, null, bundles);
+        }
+
         internal static Font ActiveFont()
         {
             if (_applied == null) return null;
@@ -398,6 +416,7 @@ namespace HSRTimer
         {
             if (Bundles.Count == 0 || now < _nextHealthCheck) return;
             _nextHealthCheck = now + 500;
+            using var measurement = new StorePerformance.Measurement(0);
             foreach (var entry in new List<KeyValuePair<string, BundleSlot>>(Bundles))
             {
                 string path = entry.Key;

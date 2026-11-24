@@ -143,3 +143,7 @@ Store 版は `0.x.x-pre` を使い、各プラグインで独立して進めま�
 ## ライセンス・クレジット
 
 原作は TwilightCup の [HSRTimer](https://github.com/TwilightCup/HSRTimer) です。[MIT License](LICENSE) と原作者の著作権表示を継承しています。
+
+### パフォーマンス診断
+
+Windows 実機での計測・比較手順は [第7段階のパフォーマンス調査](docs/store-performance-stage7.md) を参照してください。

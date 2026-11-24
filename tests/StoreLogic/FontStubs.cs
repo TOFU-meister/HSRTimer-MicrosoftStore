@@ -37,7 +37,7 @@ namespace UnityEngine
         public override int GetHashCode() => base.GetHashCode();
     }
 
-    public class Texture : Object {}
+    public class Texture : Object { public int width = 16, height = 16; public int GetInstanceID() => 123; }
     public class Texture2D : Texture { public string name = "Texture control"; }
 
     public sealed class Font : Object

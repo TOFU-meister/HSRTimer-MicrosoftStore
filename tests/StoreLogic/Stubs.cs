@@ -19,6 +19,7 @@ namespace UnityEngine
         public static float fixedTime;
         public const float fixedDeltaTime = 1f / 60f;
         public static float realtimeSinceStartup;
+        public static float unscaledDeltaTime;
     }
 
     public struct Vector3

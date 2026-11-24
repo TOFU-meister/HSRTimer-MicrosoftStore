@@ -653,4 +653,36 @@ try
 }
 finally { System.IO.File.Delete(bundlePath); }
 
+var frameWindow = new StoreFrameWindow(100);
+for (int i = 0; i < 98; i++) frameWindow.Add(0.01f);
+frameWindow.Add(0.04f);
+frameWindow.Add(0.05f);
+frameWindow.Add(float.NaN);
+var frames = frameWindow.Summarize();
+Equal(100, frames.Frames, "valid frame count");
+Equal(40, (int)Math.Round(frames.P99Ms), "nearest-rank p99");
+Equal(10, (int)Math.Round(frames.P95Ms), "nearest-rank p95");
+Equal(20, (int)Math.Round(frames.LowFps), "1% low is reciprocal of slow-tail mean");
+frameWindow.Add(0.06f);
+Equal(101, frameWindow.Summarize().Frames, "full-window frame count survives percentile buffer wrap");
+Equal(100, frameWindow.Summarize().PercentileFrames, "percentile capacity bounded");
+frameWindow.Reset();
+Equal(0, frameWindow.Summarize().Frames, "frame reset");
+Equal(false, StorePerformance.Enabled, "performance capture defaults off");
+StorePerformance.Frame(true);
+Equal(0, StorePerformance.RetainedSamples, "off does not accumulate");
+StorePerformance.Start(0);
+UnityEngine.Time.unscaledDeltaTime = 0.016f;
+for (int i = 1; i <= 365; i++)
+{
+    UnityEngine.Time.realtimeSinceStartup = i * 5;
+    StorePerformance.Frame(true);
+}
+Equal(360, StorePerformance.RetainedSamples, "CSV rows bounded");
+StorePerformance.Start(0);
+Equal(0, StorePerformance.RetainedSamples, "restart clears prior rows");
+UnityEngine.GUILayout.Click = "Stop performance capture";
+StorePerformance.Draw(new UnityEngine.GUIStyle(), new UnityEngine.GUIStyle());
+Equal(false, StorePerformance.Enabled, "explicit stop disables capture");
+
 Console.WriteLine("Store logic checks passed.");
