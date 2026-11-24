@@ -77,7 +77,9 @@ namespace HSRTimer
 
             string defaultName = loc.Get("HUD_FONT_DEFAULT");
             GUILayout.Label(loc.Get("HUD_FONT_SAVED", settings.HudFont.BundleFileName ?? defaultName), label);
-            GUILayout.Label(loc.Get("HUD_FONT_CURRENT", StoreFontDiagnostics.CurrentFontName ?? defaultName), label);
+            string currentName = StoreFontDiagnostics.HudStyleChangePending
+                ? loc.Get("HUD_FONT_PENDING") : StoreFontDiagnostics.CurrentFontName ?? defaultName;
+            GUILayout.Label(loc.Get("HUD_FONT_CURRENT", currentName), label);
             if (settings.HudFont.IsExternal && StoreFontDiagnostics.SavedFontIssue is { } issue)
                 GUILayout.Label(loc.Get(issue), label);
 

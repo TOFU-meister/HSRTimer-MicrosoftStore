@@ -296,3 +296,4 @@ HUD_FONT_MISSING:找不到所选资源包。
 HUD_FONT_BUSY:正在恢复资源包，或已达到四个资源包的上限。请在诊断中释放未使用的字体后重试。
 HUD_FONT_UNAVAILABLE:无法安全读取资源包，或所选字体不可用。
 HUD_FONT_FOLDER_FAILED:无法打开 fonts 文件夹。
+HUD_FONT_PENDING:等待 HUD 样式更新

@@ -296,3 +296,4 @@ HUD_FONT_MISSING:The selected bundle is missing.
 HUD_FONT_BUSY:The bundle is recovering or the four-bundle limit is reached. Release unused fonts in Diagnostics and try again.
 HUD_FONT_UNAVAILABLE:The bundle could not be read safely, or the selected font is unavailable.
 HUD_FONT_FOLDER_FAILED:Could not open the fonts folder.
+HUD_FONT_PENDING:Waiting for HUD style update

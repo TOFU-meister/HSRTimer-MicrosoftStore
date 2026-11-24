@@ -56,3 +56,67 @@ Normal／Bold、3行のプレビューを確認し、**適用して保存** を�
 2. 5件目でNormal／Boldを選び保存し、HUDと再起動後の表示を確認します。別の選択で編集取り消し、ページ移動、閉じるを試し、保存済み設定が維持されることを確認します。標準に戻して保存し、再起動します。
 3. テスト専用コピーを欠落・破損状態にして、状態表示とIMGUIフォールバックを確認します。実ファイルを戻して再読み込み・再適用します。Aboutで一時適用した後、正式UIから保存して診断の上書きが解除されることを確認します。
 4. 日本語、英語、簡体字中国語の表記と一覧・プレビューの収まり、フォルダーを開く動作を確認します。
+
+### 第10-3段階のWindows実機結果
+
+ユーザー報告では、正式設定の表示、5件の一覧・選択、Normal／Boldとプレビュー、編集とHUDの分離、取り消し・ページ移動、保存・再起動復元、標準へのリセット、診断との共存、フォルダーを開く操作・再読込、3言語表示の10項目が通過しました。標準IMGUIの3行プレビューはスクリーンショットで重ならずに表示されています。
+
+| 正式HUD（24px） | Normalのログ | Boldのログ |
+| --- | --- | --- |
+| Noto Sans CJK JP Bold | あり | あり |
+| Noto Sans CJK JP Regular | あり | あり |
+| Noto Sans CJK SC Regular | あり | あり |
+| Roboto Regular | あり | 直接記録なし |
+| Roboto Mono Regular | あり | あり |
+
+診断でJP Bold（Normal、18px）を一時適用し、正式UIからRoboto Regular（Normal、24px）を保存すると診断の上書きが解除され、再起動後もRoboto Regularが復元されました。再起動前後ともError 0件、Warning 76件です。診断でのロード後はスロット4、再起動後は1件で、復旧待ちはいずれも0。再起動後のFont／Material／Texture／Bundleはliveでした。個々の選択時のスロット数は記録されていないため、プレビュー専用スロット解放の根拠は自動テストです。通常利用の実機検証は以上で完了です。
+
+## 第11-1段階 — 耐障害性点検
+
+- 適用はフォント・パス検証から始まり、既存の原子的なINI書き込みの成功後に管理状態を切り替えます。書き込み失敗は従来値を維持します。保存後にUnityのスタイル参照解除が失敗した場合は、保存成功として扱い、旧Bundleを両HUDスタイルの正常な再設定まで保持します。保持中も4件上限に含みます。新Fontが無効なら標準IMGUIへフォールバックし、UIは保存値と実際の描画状態を別々に示します。
+- 診断がロードした候補には保持フラグを持たせ、正式HUDの変更・リセットで共有Bundleが解放される問題を修正しました。診断の明示解放はそのフラグを外し、保存済みで使用中のBundleは残します。回復待ちの旧保存Bundleは、他の所有者がいなければリセット時に取り除きます。
+- 一覧はオープン時と再読み込み時に走査し、ロードは選択・操作・上限付き復旧のときだけです。プレビューのGUIStyleは再利用し、描画後にFont参照を外します。既存の500 ms間隔の生存監視、2秒の待機と3回の復旧上限を維持しています。
+- ファイルの検出後、ロード前に消えた場合は該当する候補を利用不可として扱います。リンクを含まないことはパス検査の時点で確認しています。ファイル名で呼ぶUnity APIはヘッダー検査と同一ハンドルを使わないため、検査後の差し替えには競合の余地があります。
+
+### Windows追加試験（PowerShell 5.1）
+
+ゲームを終了し、起動ログが示す実データディレクトリを以下の `$data` に設定します。既存Bundleを変更せず、試験専用のファイル名を使います。
+
+```powershell
+$data = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'HSRTimer-MicrosoftStore'
+$ini = Join-Path $data 'settings.ini'
+$fonts = Join-Path $data 'fonts'
+$id = [guid]::NewGuid().ToString('N')
+$backup = "$ini.stage11-$id.bak"
+Copy-Item -LiteralPath $ini -Destination $backup -ErrorAction Stop
+$bad = Join-Path $fonts "stage11-corrupt-$id.bundle"
+[IO.File]::WriteAllBytes($bad, [byte[]](85, 110, 105, 116, 121, 70, 83, 0, 0, 0))
+```
+
+1. 正常フォント表示中に正式UIで一覧を再読込し、試験用破損Bundleを選びます。読み込み失敗を表示し、以前の選択とHUDが維持されることを確認します。
+2. 正常Bundleから固有名の試験コピーを作成して保存します。ゲームを終了して、そのコピーだけをフォルダー外に移動します。再起動時に標準IMGUIと欠落表示になることを確認します。試験コピーを戻し、再読込と再適用を実行します。
+3. ジャンクションの試験では、以下で試験名のリンクを作ります。終了中に `[HudFont]` の `bundle` だけを試験リンクのファイル名に変更し、選択が拒否され標準IMGUIで起動することを確認します。
+
+```powershell
+$target = Join-Path $env:TEMP "hsrtimer-stage11-$id"
+New-Item -ItemType Directory -Path $target -ErrorAction Stop | Out-Null
+$link = Join-Path $fonts "stage11-link-$id.bundle"
+New-Item -ItemType Junction -Path $link -Target $target -ErrorAction Stop | Out-Null
+```
+
+4. 形式が正常な5件を正式UIで連続選択し、別ページに移動します。診断で候補をロードした後、共有Bundleを正式適用し、別フォントへの切り替え・標準リセット後も診断候補が利用できることを確認します。診断の明示解放と `Record current status` でスロットの変化を確認します。
+5. ゲームを終了します。以下でINIを復元し、作成した試験ファイルとリンクのみ片付けます。ステップ2の試験コピーも作成したものだけを除きます。
+
+```powershell
+Copy-Item -LiteralPath $backup -Destination $ini -Force -ErrorAction Stop
+if (Test-Path -LiteralPath $bad) { Remove-Item -LiteralPath $bad -ErrorAction Stop }
+if ($link -and (Test-Path -LiteralPath $link)) {
+    $entry = Get-Item -LiteralPath $link -Force
+    if ($entry.LinkType -ne 'Junction') { throw 'The test path is no longer a junction.' }
+    cmd.exe /c ('rmdir "{0}"' -f $link)
+    if ($LASTEXITCODE -ne 0) { throw 'Could not remove the test junction.' }
+}
+if ($target -and (Test-Path -LiteralPath $target)) { Remove-Item -LiteralPath $target -ErrorAction Stop }
+```
+
+実際にUnityのFontが消失する故障、スタイル参照解除例外、Windowsのジャンクション、破損ファイルのネイティブロードは第11-1段階の実機確認に残ります。故障を注入する一般向けUIはありません。

@@ -23,3 +23,4 @@ HUD_FONT_MISSING:選択したBundleが見つかりません。
 HUD_FONT_BUSY:Bundleの復旧中か、読み込み上限の4件に達しています。診断画面で未使用フォントを解放して再試行してください。
 HUD_FONT_UNAVAILABLE:Bundleを安全に読み込めないか、選択したフォントを利用できません。
 HUD_FONT_FOLDER_FAILED:fontsフォルダーを開けませんでした。
+HUD_FONT_PENDING:HUD表示の更新待ち

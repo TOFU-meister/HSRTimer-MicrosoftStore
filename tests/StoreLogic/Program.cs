@@ -894,12 +894,40 @@ try
     reread.Load();
     Equal(StoreHudFontStyle.Normal, reread.HudFont.Style, "font panel commits weight to disk");
     Equal(UnityEngine.FontStyle.Normal, StoreFontDiagnostics.ActiveStyle, "committed HUD weight updates immediately");
+    StoreFontDiagnostics.DetachHudStyles = () => throw new InvalidOperationException("injected native style failure");
     Equal<string>(null, StoreFontDiagnostics.ApplyAndSaveFont(savedSettings, StoreHudFontPreference.Imgui, fontTestRoot),
         "font panel resets to IMGUI");
     reread.Load();
     Equal(false, reread.HudFont.IsExternal, "reset clears persistent identifier");
     Equal(false, StoreFontDiagnostics.IsApplied, "reset clears runtime selection");
-    Equal(1, recovered.Unloads, "reset releases previous saved bundle");
+    Equal(0, recovered.Unloads, "style detachment failure retains previous live bundle");
+    Equal(true, StoreFontDiagnostics.HudStyleChangePending, "UI can report pending draw separately from save");
+    Equal(1, StoreFontDiagnostics.PerformanceSnapshot().Bundles, "retained bundle still counts toward the limit");
+    StoreFontDiagnostics.DetachHudStyles = null;
+    StoreFontDiagnostics.HudStylesRebound();
+    Equal(1, recovered.Unloads, "successful rebind releases previous saved bundle once");
+    Equal(false, StoreFontDiagnostics.HudStyleChangePending, "successful rebind clears pending draw status");
+
+    var shared = TestFontBundle.Next = new();
+    var sharedSlot = LoadSaved(savedPath, StoreFontBundle.Route.File);
+    StoreFontDiagnostics.RegisterBundle(savedPath, StoreFontBundle.Route.File, sharedSlot, selectNew: true);
+    Equal<string>(null, StoreFontDiagnostics.ApplyAndSaveFont(savedSettings, normal, fontTestRoot), "use diagnostic bundle as saved font");
+    Equal<string>(null, StoreFontDiagnostics.ApplyAndSaveFont(savedSettings, StoreHudFontPreference.Imgui, fontTestRoot),
+        "reset preserves diagnostic owner");
+    Equal(0, shared.Unloads, "diagnostic candidate remains live after saved owner releases");
+    StoreFontDiagnostics.Release(keepSaved: true);
+    Equal(1, shared.Unloads, "explicit diagnostics release unloads shared candidate exactly once");
+
+    var pendingReset = TestFontBundle.Next = new();
+    StoreFontDiagnostics.RestoreSavedFont(normal, fontTestRoot, LoadSaved);
+    pendingReset.Font.Destroyed = true;
+    StoreFontDiagnostics.MaintainBundles(now + 5000, LoadSaved);
+    int beforeReset = attempts;
+    Equal<string>(null, StoreFontDiagnostics.ApplyAndSaveFont(savedSettings, StoreHudFontPreference.Imgui, fontTestRoot),
+        "reset cancels unowned saved recovery");
+    StoreFontDiagnostics.MaintainBundles(now + 7500, LoadSaved);
+    Equal(beforeReset, attempts, "obsolete saved bundle is not reloaded");
+    Equal(1, pendingReset.Unloads, "reset does not unload invalidated bundle twice");
     StoreFontDiagnostics.Release();
     StoreFontDiagnostics.Release();
     Equal(1, savedBundle.Unloads, "invalidated bundle unloaded once");

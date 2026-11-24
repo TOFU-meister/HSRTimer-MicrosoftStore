@@ -593,6 +593,7 @@ namespace HSRTimer
             Font probe = StoreFontDiagnostics.ActiveFont();
             if (_rowStyle.font != probe) _rowStyle.font = probe;
             if (_bannerStyle.font != probe) _bannerStyle.font = probe;
+            StoreFontDiagnostics.HudStylesRebound();
             var weight = probe == null ? FontStyle.Bold : StoreFontDiagnostics.ActiveStyle;
             if (_rowStyle.fontStyle != weight) _rowStyle.fontStyle = weight;
             if (_bannerStyle.fontStyle != weight) _bannerStyle.fontStyle = weight;

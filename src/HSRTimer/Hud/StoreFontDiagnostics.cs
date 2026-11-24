@@ -89,12 +89,16 @@ namespace HSRTimer
             internal long RetryAt;
             internal long HealthySince = -1;
             internal int Attempts;
+            internal bool DiagnosticOwner;
+            internal bool AwaitingHudDetach;
+            internal bool DropAfterHudDetach;
         }
 
         private const int MaxRecoveryAttempts = 3;
         private const long RecoveryDelayMs = 2000;
         private static readonly Dictionary<string, BundleSlot> Bundles = new(StringComparer.OrdinalIgnoreCase);
         private static long _nextHealthCheck;
+        private static bool _hudDetachPending;
         private static (string Path, string Asset)? _pendingHud, _pendingPreview;
         internal static Action DetachHudStyles { private get; set; }
         private static readonly Queue<string> History = new();
@@ -152,6 +156,7 @@ namespace HSRTimer
         internal static bool IsApplied => Effective != null;
 
         internal static string CurrentFontName => Effective?.Name;
+        internal static bool HudStyleChangePending => _hudDetachPending;
         internal static string SavedFontIssue { get; private set; }
 
         internal static string FontsDirectory(string dataRoot)
@@ -236,8 +241,14 @@ namespace HSRTimer
         {
             if (path == null || MatchesAsset(path, _savedPath) || MatchesAsset(path, _applied?.BundlePath)
                 || (_pendingHud is { } pending && MatchesAsset(path, pending.Path))
-                || !Bundles.Remove(path, out var slot))
+                || !Bundles.TryGetValue(path, out var slot) || slot.DiagnosticOwner)
                 return;
+            if (slot.AwaitingHudDetach)
+            {
+                slot.DropAfterHudDetach = true;
+                return;
+            }
+            Bundles.Remove(path);
             var selected = Candidates.Count > 0 ? Candidates[_selected] : null;
             Candidates.RemoveAll(candidate => MatchesAsset(candidate.BundlePath, path));
             if (_pendingPreview is { } preview && MatchesAsset(preview.Path, path)) _pendingPreview = null;
@@ -286,15 +297,22 @@ namespace HSRTimer
             string newPath = null;
             try
             {
-                if (preference.IsExternal) candidate = ResolveFontChoice(preference, dataRoot, out newPath);
+                try
+                {
+                    if (preference.IsExternal) candidate = ResolveFontChoice(preference, dataRoot, out newPath);
+                }
+                catch (Exception error) { return FontIssue(error); }
+
                 if (!settings.TrySaveHudFont(preference)) return "HUD_FONT_SAVE_FAILED";
+
+                // Commit managed state after the atomic INI write. Native style
+                // detachment is best effort and cannot turn this into a save failure.
                 string oldPath = _savedPath;
                 ResetHud("Saved HUD font selection changed.");
                 SetSavedFont(preference, candidate);
                 DropUnusedBundle(oldPath);
                 return null;
             }
-            catch (Exception error) { return FontIssue(error); }
             finally { DropUnusedBundle(newPath); }
         }
 
@@ -326,13 +344,10 @@ namespace HSRTimer
         private static void ClearSavedFont()
         {
             if (_saved == null) return;
+            var previous = _saved;
             _saved = null;
             _reportedSaved = null;
-            if (_applied == null)
-            {
-                try { DetachHudStyles?.Invoke(); }
-                catch (Exception error) { Report("Detach saved HUD font", error); }
-            }
+            if (_applied == null) TryDetachHud(previous.BundlePath);
         }
 
         internal static void HudFailed(Exception error)
@@ -571,10 +586,11 @@ namespace HSRTimer
                         string reason = Health(current.Bundle);
                         if (reason == null)
                         {
+                            current.DiagnosticOwner = true;
                             Note("Skipped " + Path.GetFileName(path) + ": already open. Restore IMGUI and release before retrying.");
                             continue;
                         }
-                        Invalidate(path, current, reason, Environment.TickCount64);
+                        if (!Invalidate(path, current, reason, Environment.TickCount64)) continue;
                     }
                     if (current == null && Bundles.Count >= StoreFontBundle.MaxBundles) continue;
 
@@ -606,7 +622,11 @@ namespace HSRTimer
         internal static void RegisterBundle(string path, StoreFontBundle.Route route, StoreFontBundle bundle, bool selectNew, int recoveryAttempts = 0)
         {
             bool hasSlot = Bundles.TryGetValue(path, out var slot);
-            if (ReferenceEquals(slot?.Bundle, bundle)) return;
+            if (slot != null && ReferenceEquals(slot.Bundle, bundle))
+            {
+                slot.DiagnosticOwner |= selectNew;
+                return;
+            }
             if (slot?.Bundle != null || (!hasSlot && Bundles.Count >= StoreFontBundle.MaxBundles))
             {
                 DisposeBundle(bundle);
@@ -622,9 +642,11 @@ namespace HSRTimer
                     if (selectNew || (_pendingPreview is { } preview && preview.Path == path && preview.Asset == bundle.FontNames[i]))
                         Select(index);
                 }
-                if (_pendingHud is { } pending && pending.Path == path)
+                bool restoresSaved = MatchesAsset(path, _savedPath);
+                var saved = restoresSaved ? FindSavedCandidate(path, _savedAsset) : null;
+                if (_pendingHud is { } pending && MatchesAsset(pending.Path, path))
                 {
-                    var recovered = Candidates.Find(candidate => candidate.BundlePath == path && candidate.AssetName == pending.Asset);
+                    var recovered = Candidates.Find(candidate => MatchesAsset(candidate.BundlePath, path) && MatchesAsset(candidate.AssetName, pending.Asset));
                     _pendingHud = null;
                     if (recovered?.Font != null)
                     {
@@ -638,15 +660,19 @@ namespace HSRTimer
                         Record(_status);
                     }
                 }
-                if (string.Equals(path, _savedPath, StringComparison.OrdinalIgnoreCase))
+                if (restoresSaved)
                 {
-                    _saved = FindSavedCandidate(path, _savedAsset);
+                    _saved = saved;
                     if (_saved != null) SavedFontIssue = null;
                     if (_saved == null)
                         Record($"Saved HUD font asset {_savedAsset} is unavailable after recovering {Path.GetFileName(path)}.");
                 }
                 if (_pendingPreview is { } selection && selection.Path == path) _pendingPreview = null;
-                Bundles[path] = new BundleSlot { Bundle = bundle, Route = route, Attempts = recoveryAttempts };
+                Bundles[path] = new BundleSlot
+                {
+                    Bundle = bundle, Route = route, Attempts = recoveryAttempts,
+                    DiagnosticOwner = selectNew || slot?.DiagnosticOwner == true,
+                };
             }
             catch
             {
@@ -663,8 +689,9 @@ namespace HSRTimer
             catch (Exception error) { return StoreFontBundle.Describe(error); }
         }
 
-        private static void Invalidate(string path, BundleSlot slot, string reason, long now)
+        private static bool Invalidate(string path, BundleSlot slot, string reason, long now)
         {
+            if (slot.AwaitingHudDetach) return false;
             _status = $"Invalidated at {Result(() => Application.loadedLevelName)}: {Path.GetFileName(path)} ({reason}).";
             Record(_status);
             foreach (var candidate in Candidates)
@@ -681,10 +708,12 @@ namespace HSRTimer
             int remainingIndex = selected == null ? -1 : Candidates.IndexOf(selected);
             if (remainingIndex < 0) Select(0);
             else _selected = remainingIndex;
+            if (slot.AwaitingHudDetach) return false;
             var bundle = slot.Bundle;
             slot.Bundle = null;
             slot.RetryAt = now + RecoveryDelayMs;
             DisposeBundle(bundle);
+            return true;
         }
 
         private static void DisposeBundle(StoreFontBundle bundle)
@@ -711,13 +740,14 @@ namespace HSRTimer
             {
                 string path = entry.Key;
                 var slot = entry.Value;
+                if (slot.AwaitingHudDetach) continue;
                 if (slot.Bundle != null)
                 {
                     string reason = Health(slot.Bundle);
                     if (reason != null)
                     {
-                        Invalidate(path, slot, reason, now);
-                        if (slot.Attempts >= MaxRecoveryAttempts) StopRecovery(path);
+                        if (Invalidate(path, slot, reason, now) && slot.Attempts >= MaxRecoveryAttempts)
+                            StopRecovery(path);
                     }
                     else if (slot.HealthySince < 0)
                         slot.HealthySince = now;
@@ -1104,8 +1134,40 @@ namespace HSRTimer
             _status = status;
             if (previous == null) return;
             Record("Reset " + Identify(previous) + ". " + status);
-            try { DetachHudStyles?.Invoke(); }
-            catch (Exception error) { Report("Detach HUD font styles", error); }
+            TryDetachHud(previous.BundlePath);
+        }
+
+        private static void TryDetachHud(string path)
+        {
+            try
+            {
+                DetachHudStyles?.Invoke();
+                HudStylesRebound();
+            }
+            catch (Exception error)
+            {
+                if (path != null && Bundles.TryGetValue(path, out var slot))
+                {
+                    slot.AwaitingHudDetach = true;
+                    _hudDetachPending = true;
+                }
+                Report("Detach HUD font styles", error);
+            }
+        }
+
+        // A completed repaint assignment proves both native styles were rebound.
+        internal static void HudStylesRebound()
+        {
+            if (!_hudDetachPending) return;
+            _hudDetachPending = false;
+            foreach (string path in new List<string>(Bundles.Keys))
+            {
+                var slot = Bundles[path];
+                if (!slot.AwaitingHudDetach) continue;
+                slot.AwaitingHudDetach = false;
+                if (slot.DropAfterHudDetach) DropUnusedBundle(path);
+                slot.DropAfterHudDetach = false;
+            }
         }
 
         internal static void Release(bool keepSaved = false)
@@ -1119,7 +1181,8 @@ namespace HSRTimer
                 _savedAsset = null;
             }
 
-            bool Retain(string path) => retainedPath != null && string.Equals(path, retainedPath, StringComparison.OrdinalIgnoreCase);
+            bool Retain(string path) => path != null && ((retainedPath != null && MatchesAsset(path, retainedPath))
+                || (keepSaved && Bundles.TryGetValue(path, out var pending) && pending.AwaitingHudDetach));
             foreach (var candidate in Candidates)
                 if (!Retain(candidate.BundlePath)) DestroyOwned(candidate);
             Candidates.RemoveAll(candidate => !Retain(candidate.BundlePath));
@@ -1127,10 +1190,17 @@ namespace HSRTimer
             _nextHealthCheck = 0;
             foreach (var path in new List<string>(Bundles.Keys))
             {
-                if (Retain(path)) continue;
-                DisposeBundle(Bundles[path].Bundle);
+                var slot = Bundles[path];
+                slot.DiagnosticOwner = false;
+                if (Retain(path))
+                {
+                    if (!MatchesAsset(path, retainedPath)) slot.DropAfterHudDetach = true;
+                    continue;
+                }
+                DisposeBundle(slot.Bundle);
                 Bundles.Remove(path);
             }
+            if (!keepSaved) _hudDetachPending = false;
             Select(0);
         }
 
