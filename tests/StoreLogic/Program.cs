@@ -399,4 +399,61 @@ Equal(false, StoreGameVersion.TryFormat(BuildVersion("invalid"), out _), "Reject
 Equal(false, StoreGameVersion.TryFormat("<VersionNumber />", out _), "Reject missing version components");
 Equal(false, StoreGameVersion.TryFormat("<VersionNumber>", out _), "Reject malformed version XML");
 
+void FontClick(string text)
+{
+    UnityEngine.GUILayout.Click = text;
+    UnityEngine.GUILayout.Labels.Clear();
+    StoreFontDiagnostics.Draw(new UnityEngine.GUIStyle(), new UnityEngine.GUIStyle());
+}
+
+Equal(false, StoreFontDiagnostics.IsApplied, "IMGUI remains default");
+FontClick("Font Diagnostics");
+FontClick("List Unity OS fonts");
+Equal(true, UnityEngine.GUILayout.Labels.Exists(x => x.Contains("MissingMethodException")),
+    "OS enumeration exception stays in diagnostics");
+UnityEngine.Font.FailOsList = false;
+FontClick("List Unity OS fonts");
+Equal(true, UnityEngine.GUILayout.Labels.Exists(x => x.Contains("OS font 1/2: Arial")),
+    "successfully enumerated OS names appear sorted");
+FontClick("Probe selected OS font");
+Equal(true, UnityEngine.GUILayout.Labels.Exists(x => x.Contains("MissingMethodException")),
+    "optional single-family overload safely missing");
+FontClick("Scan game fonts");
+FontClick("Inspect glyph and atlas APIs");
+Equal(true, UnityEngine.GUILayout.Labels.Exists(x => x.Contains("not exposed by interop")),
+    "optional character query safely missing");
+FontClick("Apply to Timer HUD for this session");
+Equal(false, StoreFontDiagnostics.IsApplied, "draw return alone does not confirm glyphs");
+FontClick("I checked the candidate visually");
+FontClick("Apply to Timer HUD for this session");
+Equal(true, ReferenceEquals(UnityEngine.GUI.skin.font, StoreFontDiagnostics.ActiveFont()),
+    "borrowed font can be applied");
+FontClick("Restore IMGUI / release probe fonts");
+Equal(false, UnityEngine.GUI.skin.font.Destroyed, "borrowed font is never destroyed");
+FontClick("Probe upstream fallback order");
+var ownedFont = UnityEngine.Font.LastCreated;
+UnityEngine.GUI.FailCandidateDraw = true;
+FontClick(null);
+FontClick("I checked the candidate visually");
+FontClick("Apply to Timer HUD for this session");
+Equal(false, StoreFontDiagnostics.IsApplied, "failed preview cannot be applied");
+UnityEngine.GUI.FailCandidateDraw = false;
+FontClick("Preview size 18 (click to cycle)");
+FontClick("I checked the candidate visually");
+FontClick("Apply to Timer HUD for this session");
+Equal(true, ReferenceEquals(ownedFont, StoreFontDiagnostics.ActiveFont()), "owned font can be applied");
+Equal(22, StoreFontDiagnostics.ActiveSize, "preview size applies only for the session");
+StoreFontDiagnostics.HudFailed(new InvalidOperationException("simulated draw failure"));
+Equal(false, StoreFontDiagnostics.IsApplied, "HUD failure resets to standard font");
+FontClick("I checked the candidate visually");
+FontClick("Apply to Timer HUD for this session");
+Equal(true, StoreFontDiagnostics.IsApplied, "a fresh preview can be confirmed after a HUD exception");
+ownedFont.Destroyed = true;
+Equal(true, StoreFontDiagnostics.ActiveFont() == null && !StoreFontDiagnostics.IsApplied,
+    "destroyed font resets to standard font");
+FontClick("Probe upstream fallback order");
+var newOwnedFont = UnityEngine.Font.LastCreated;
+StoreFontDiagnostics.Release();
+Equal(true, newOwnedFont.Destroyed, "release destroys the live owned font");
+
 Console.WriteLine("Store logic checks passed.");

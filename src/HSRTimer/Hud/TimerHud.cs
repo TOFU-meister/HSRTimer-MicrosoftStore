@@ -84,7 +84,34 @@ namespace HSRTimer
 
             int size = cfg.Layout.FontSize;
             EnsureFont(size);
+#if STORE_IL2CPP
+            if (StoreFontDiagnostics.IsApplied)
+            {
+                try
+                {
+                    ApplyFontToStyles(size);
+                    DrawHud(cfg);
+                    return;
+                }
+                catch (System.Exception error)
+                {
+                    StoreFontDiagnostics.HudFailed(error);
+                }
+            }
+#endif
             ApplyFontToStyles(size);
+            DrawHud(cfg);
+        }
+
+#if STORE_IL2CPP
+        private void OnDestroy() => StoreFontDiagnostics.Release();
+#endif
+
+#if STORE_IL2CPP
+        [Il2CppInterop.Runtime.Attributes.HideFromIl2Cpp]
+#endif
+        private void DrawHud(ConfigService cfg)
+        {
 
             // Global show/hide toggle.
             if (!cfg.Settings.ShowHud)
@@ -524,6 +551,12 @@ namespace HSRTimer
                 if (_customStyle.font != _font) _customStyle.font = _font;
                 if (_axisLabelStyle.font != _font) _axisLabelStyle.font = _font;
             }
+#if STORE_IL2CPP
+            Font probe = StoreFontDiagnostics.ActiveFont();
+            if (_rowStyle.font != probe) _rowStyle.font = probe;
+            if (_bannerStyle.font != probe) _bannerStyle.font = probe;
+            if (probe != null) size = StoreFontDiagnostics.ActiveSize;
+#endif
             if (_rowStyle.fontSize != size) _rowStyle.fontSize = size;
             // The invalid banner matches the timer rows' size (the fixed smaller
             // size made the warning look like a footnote next to the timer).

@@ -499,6 +499,9 @@ namespace HSRTimer
             // R13: Check Update — query GitHub Releases, show the newest release,
             // and (on request) download + install it.
             DrawUpdater(loc);
+#if STORE_IL2CPP
+            StoreFontDiagnostics.Draw(_button, _small);
+#endif
         }
 
         // ── R13: plugin update widget on the About page ──

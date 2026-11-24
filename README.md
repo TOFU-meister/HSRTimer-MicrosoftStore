@@ -135,6 +135,11 @@ BepInEx のコンソール画面を隠したい場合は、ゲーム終了後に
 Store 版は `0.x.x-pre` を使い、各プラグインで独立して進めます。先頭の `0` と末尾の `-pre` はプレリリース期間中固定です。小機能、バグ修正、UI 調整は3番目を進めます。大きな機能追加、仕様変更、大規模な修正は2番目を進め、3番目を `0` に戻します。バージョン更新時は `PluginInfo.cs` と `.csproj` の番号をそろえます。公開時のタグは `v<version>`、配布 DLL は `HSRTimer-v<version>.dll` とします。
 
 
+
+### 開発版のフォント確認
+
+開発版 `0.1.3-pre` では、`Home → About → Font Diagnostics` から取得方法と実描画を比較できます。標準フォントは従来の IMGUI スキンで、一時適用はそのセッションの Timer HUD に限ります。[調査結果と実機確認手順](docs/store-font-diagnostics.md)
+
 ## ライセンス・クレジット
 
 原作は TwilightCup の [HSRTimer](https://github.com/TwilightCup/HSRTimer) です。[MIT License](LICENSE) と原作者の著作権表示を継承しています。
