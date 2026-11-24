@@ -522,6 +522,39 @@ try
     catch (MissingMethodException) {}
     Equal(0, TestFontBundle.Opened, "partial API never opens a bundle");
     ExpectBundleFailure(() => LoadBundle(), "Unity rejecting a valid header is handled");
+    var invalidNative = TestFontBundle.Next = new() { InvalidNativeObject = true };
+    try { LoadBundle(); throw new Exception("Invalid native wrapper accepted."); }
+    catch (System.IO.InvalidDataException error)
+    {
+        Equal(true, error.Message.Contains("Unity overloaded null"), "Unity null is distinguished from CLR null");
+    }
+    Equal(0, invalidNative.Unloads, "invalid object is not unloaded");
+    var enumerationFailure = TestFontBundle.Next = new() { FailEnumeration = true };
+    try { LoadBundle(); throw new Exception("Enumeration failure ignored."); }
+    catch (System.IO.InvalidDataException error)
+    {
+        Equal(true, StoreFontBundle.Describe(error).Contains("enumeration test error"), "preserve inner exception");
+    }
+    Equal(1, enumerationFailure.Unloads, "failed enumeration unloads bundle");
+    var control = TestFontBundle.Next = new() { Font = null, Texture = new UnityEngine.Texture2D() };
+    using (var loadedTexture = StoreFontBundle.Load(bundlePath, typeof(TestFontBundle),
+        () => new Il2CppSystem.Type(), StoreFontBundle.Route.FileExplicit))
+    {
+        Equal(1, loadedTexture.TextureCount, "Texture2D-only control accepted");
+        Equal("explicit", TestFontBundle.LastRoute, "three-argument file route selected");
+    }
+    using (StoreFontBundle.Load(bundlePath, typeof(TestFontBundle),
+        () => new Il2CppSystem.Type(), StoreFontBundle.Route.Memory))
+        Equal("memory", TestFontBundle.LastRoute, "memory route selected");
+    try
+    {
+        StoreFontBundle.Load(bundlePath, typeof(TestFontBundle), () => new Il2CppSystem.Type(), StoreFontBundle.Route.MemoryExplicit);
+        throw new Exception("Memory reflection failure ignored.");
+    }
+    catch (System.IO.InvalidDataException error)
+    {
+        Equal(true, StoreFontBundle.Describe(error).Contains("native test error"), "memory exception chain recorded");
+    }
     var noFonts = TestFontBundle.Next = new() { Font = null };
     ExpectBundleFailure(() => LoadBundle(), "bundle without a font rejected");
     Equal(1, noFonts.Unloads, "empty bundle unloaded");

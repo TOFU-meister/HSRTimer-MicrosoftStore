@@ -25,6 +25,7 @@ namespace HSRTimer
         private static readonly Dictionary<string, StoreFontBundle> Bundles = new(StringComparer.OrdinalIgnoreCase);
         private static readonly Queue<string> History = new();
         private static string _search = "";
+        private static string _bundleResult;
         private static Vector2 _osScroll, _candidateScroll;
         private static readonly HashSet<string> Warnings = new();
         private static int _selected, _osSelected;
@@ -73,7 +74,11 @@ namespace HSRTimer
 
             if (GUILayout.Button("Scan game fonts", button)) Scan();
             if (GUILayout.Button("Inspect interop and internal-call availability", button)) ProbeInterop();
-            if (GUILayout.Button("Load local font bundles", button)) LoadBundles();
+            if (GUILayout.Button("Load local font bundles (file)", button)) LoadBundles(StoreFontBundle.Route.File);
+            if (GUILayout.Button("Compare file (CRC 0, offset 0)", button)) LoadBundles(StoreFontBundle.Route.FileExplicit);
+            if (GUILayout.Button("Compare memory", button)) LoadBundles(StoreFontBundle.Route.Memory);
+            if (GUILayout.Button("Compare memory (CRC 0)", button)) LoadBundles(StoreFontBundle.Route.MemoryExplicit);
+            if (_bundleResult != null) GUILayout.Label(_bundleResult, label);
             if (GUILayout.Button("Record current status", button)) RecordStatus();
             if (GUILayout.Button("Export diagnostic report", button)) ExportReport();
             if (GUILayout.Button("Restore IMGUI / release probe fonts", button)) Release();
@@ -224,9 +229,17 @@ namespace HSRTimer
             catch (Exception error) { Report("Export font diagnostics", error); }
         }
 
-        private static void LoadBundles()
+        private static void LoadBundles(StoreFontBundle.Route route)
         {
             string folder = PersistenceService.PathFor("fonts");
+            _bundleResult = null;
+            var details = new List<string>();
+            void Note(string message)
+            {
+                details.Add(message);
+                Record(message, log: false);
+            }
+            Note("Bundle test: " + StoreFontBundle.RouteName(route) + ", platform=" + Result(() => Application.platform.ToString()));
             try
             {
                 StoreDataPolicy.EnsureSafePath(PersistenceService.PluginDir, folder);
@@ -235,12 +248,16 @@ namespace HSRTimer
                 foreach (string path in Directory.EnumerateFiles(folder, "*.bundle"))
                 {
                     if (Bundles.Count >= StoreFontBundle.MaxBundles || attempts >= StoreFontBundle.MaxBundles) break;
-                    if (Bundles.ContainsKey(path)) continue;
+                    if (Bundles.ContainsKey(path))
+                    {
+                        Note("Skipped " + Path.GetFileName(path) + ": already open. Restore IMGUI and release before retrying.");
+                        continue;
+                    }
                     attempts++;
                     try
                     {
                         StoreDataPolicy.EnsureSafePath(PersistenceService.PluginDir, path);
-                        var bundle = StoreFontBundle.Load(path);
+                        var bundle = LoadWithUnityMessages(path, route, Note);
                         int before = Candidates.Count;
                         try
                         {
@@ -256,15 +273,51 @@ namespace HSRTimer
                             throw;
                         }
                         added++;
-                        Record("Loaded " + Path.GetFileName(path) + " (" + bundle.Fonts.Count + " fonts)");
+                        Note($"Loaded {Path.GetFileName(path)} ({bundle.Fonts.Count} Font; {bundle.TextureCount} Texture2D).");
                     }
-                    catch (Exception error) { Report("Load bundle " + Path.GetFileName(path), error); }
+                    catch (Exception error) { Note("Load bundle " + Path.GetFileName(path) + ": " + StoreFontBundle.Describe(error)); }
                 }
-                if (added > 0 || attempts == 0)
-                    _status = $"Loaded {added} new bundle(s); {Bundles.Count}/{StoreFontBundle.MaxBundles} open. Folder: " + folder;
-                RecordStatus();
+                Note($"Loaded {added} new bundle(s); {Bundles.Count}/{StoreFontBundle.MaxBundles} open. Folder: {folder}");
             }
-            catch (Exception error) { Report("Load local font bundles", error); }
+            catch (Exception error) { Note("Load local font bundles: " + StoreFontBundle.Describe(error)); }
+            _bundleResult = string.Join("\n", details);
+        }
+
+        private static StoreFontBundle LoadWithUnityMessages(string path, StoreFontBundle.Route route, Action<string> note)
+        {
+            var messages = new List<string>();
+            Action detach = null;
+            try
+            {
+                try
+                {
+                    detach = ListenForUnityMessages((message, _, type) =>
+                    {
+                        if (messages.Count < 12 && type != LogType.Log)
+                            messages.Add("Unity [" + type + "] " + message);
+                    });
+                }
+                catch (Exception error) { note("Unity log hook unavailable: " + Describe(error)); }
+                return StoreFontBundle.Load(path, route, note);
+            }
+            finally
+            {
+                try { detach?.Invoke(); }
+                catch (Exception error) { note("Unity log hook removal failed: " + Describe(error)); }
+                foreach (var message in messages) note(message);
+            }
+        }
+
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private static Action ListenForUnityMessages(Action<string, string, LogType> listener)
+        {
+            Application.LogCallback callback = listener;
+            var signature = new[] { typeof(Application.LogCallback) };
+            var add = typeof(Application).GetMethod("add_logMessageReceived", signature);
+            var remove = typeof(Application).GetMethod("remove_logMessageReceived", signature);
+            if (add == null || remove == null) throw new MissingMethodException("Application.logMessageReceived");
+            add.Invoke(null, new object[] { callback });
+            return () => remove.Invoke(null, new object[] { callback });
         }
 
         private static void ProbeInterop()

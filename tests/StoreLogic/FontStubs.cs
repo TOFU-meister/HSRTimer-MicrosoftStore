@@ -4,6 +4,12 @@ using Il2CppInterop.Runtime.InteropTypes.Arrays;
 
 namespace Il2CppInterop.Runtime.InteropTypes.Arrays
 {
+    public class Il2CppStructArray<T>
+    {
+        public T[] Values { get; }
+        public Il2CppStructArray(T[] values) => Values = values;
+    }
+
     public class Il2CppArrayBase<T> : List<T>
     {
         public Il2CppArrayBase(IEnumerable<T> values) : base(values) {}
@@ -21,7 +27,15 @@ namespace UnityEngine
     public class Object : Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase
     {
         public static void Destroy(Font font) => font.Destroyed = true;
+        public bool InvalidNativeObject;
+        public static bool operator ==(Object a, Object b)
+            => ((a is null || a.InvalidNativeObject) && (b is null || b.InvalidNativeObject)) || ReferenceEquals(a, b);
+        public static bool operator !=(Object a, Object b) => !(a == b);
+        public override bool Equals(object other) => ReferenceEquals(this, other);
+        public override int GetHashCode() => base.GetHashCode();
     }
+
+    public class Texture2D : Object { public string name = "Texture control"; }
 
     public sealed class Font : Object
     {
@@ -54,7 +68,16 @@ namespace UnityEngine
     public sealed class Material { public object mainTexture = new(); }
     public struct Rect {}
     public struct Vector2 { public static Vector2 zero => default; }
-    public static class Application { public static string loadedLevelName => "Test"; }
+    public enum LogType { Log, Warning }
+    public static class Application
+    {
+        public static string loadedLevelName => "Test";
+        public static string platform => "WindowsPlayer";
+        public sealed class LogCallback
+        {
+            public static implicit operator LogCallback(Action<string, string, LogType> callback) => new();
+        }
+    }
     public enum FontStyle { Normal, Bold }
     public enum EventType { Repaint }
     public sealed class Event { public static Event current = new(); public EventType type; }
@@ -112,10 +135,10 @@ namespace UnityEngine
     }
 }
 
-namespace Il2CppSystem { public class Type {} }
+namespace Il2CppSystem { public class Type { public System.Type ClrType; } }
 namespace Il2CppInterop.Runtime
 {
-    public static class Il2CppType { public static Il2CppSystem.Type Of<T>() => new(); }
+    public static class Il2CppType { public static Il2CppSystem.Type Of<T>() => new() { ClrType = typeof(T) }; }
     public static class IL2CPP
     {
         public static bool HasFontClass = true;
@@ -159,15 +182,35 @@ namespace HSRTimer
         internal static string Draw(string key, string value, UnityEngine.GUIStyle style) => Query;
     }
 }
-public sealed class TestFontBundle
+public sealed class TestFontBundle : UnityEngine.Object
 {
     public static TestFontBundle Next;
     public static int Opened;
     public string[] Names = { "assets/fonts/test.ttf" };
     public UnityEngine.Font Font = new();
     public int Unloads;
-    public static TestFontBundle LoadFromFile(string path) { Opened++; return Next; }
-    public string[] GetAllAssetNames() => Names;
-    public UnityEngine.Object LoadAsset(string name, Il2CppSystem.Type type) => Font;
+    public UnityEngine.Texture2D Texture;
+    public static string LastRoute;
+    public static TestFontBundle LoadFromFile(string path) { Opened++; LastRoute = "file"; return Next; }
+    public static TestFontBundle LoadFromFile(string path, uint crc, ulong offset)
+    {
+        if (crc != 0 || offset != 0) throw new ArgumentException("Expected zero CRC and offset.");
+        Opened++;
+        LastRoute = "explicit";
+        return Next;
+    }
+    public static TestFontBundle LoadFromMemory(Il2CppStructArray<byte> bytes)
+    {
+        if (bytes.Values.Length != 8) throw new ArgumentException("Wrong byte array.");
+        Opened++;
+        LastRoute = "memory";
+        return Next;
+    }
+    public static TestFontBundle LoadFromMemory(Il2CppStructArray<byte> bytes, uint crc)
+        => throw new InvalidOperationException("native test error");
+    public bool FailEnumeration;
+    public string[] GetAllAssetNames() => FailEnumeration ? throw new InvalidOperationException("enumeration test error") : Names;
+    public UnityEngine.Object LoadAsset(string name, Il2CppSystem.Type type)
+        => type.ClrType == typeof(UnityEngine.Texture2D) ? Texture : Font;
     public void Unload(bool destroyAssets) { Unloads++; if (destroyAssets && Font != null) UnityEngine.Object.Destroy(Font); }
 }

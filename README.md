@@ -138,7 +138,7 @@ Store 版は `0.x.x-pre` を使い、各プラグインで独立して進めま�
 
 ### 開発版のフォント確認
 
-開発版 `0.1.3-pre` では、`Home → About → Font Diagnostics` から取得方法と実描画を比較できます。標準フォントは従来の IMGUI スキンで、一時適用はそのセッションの Timer HUD に限ります。[第1段階の調査](docs/store-font-diagnostics.md)・[第2段階の診断と AssetBundle 作成手順](docs/store-font-stage2.md)・[第3段階の採取手順](docs/store-font-stage3.md)・[第4段階のメタデータ解析](docs/store-font-stage4.md)
+開発版 `0.1.3-pre` では、`Home → About → Font Diagnostics` から取得方法と実描画を比較できます。標準フォントは従来の IMGUI スキンで、一時適用はそのセッションの Timer HUD に限ります。[第1段階の調査](docs/store-font-diagnostics.md)・[第2段階の診断と AssetBundle 作成手順](docs/store-font-stage2.md)・[第3段階の採取手順](docs/store-font-stage3.md)・[第4段階のメタデータ解析](docs/store-font-stage4.md)・[第5段階の Bundle 読込診断](docs/store-font-stage5.md)
 
 ## ライセンス・クレジット
 
