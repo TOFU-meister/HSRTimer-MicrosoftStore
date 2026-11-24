@@ -9,7 +9,17 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $source = Join-Path (Split-Path $PSScriptRoot) 'tools\StoreFontBundleProject'
-$fonts = @(Get-Content -LiteralPath (Join-Path $source 'test-fonts.json') -Raw | ConvertFrom-Json)
+# Windows PowerShell 5.1 emits the JSON array as one pipeline object.
+# Assignment preserves its elements without adding another array around it.
+$fonts = Get-Content -LiteralPath (Join-Path $source 'test-fonts.json') -Raw | ConvertFrom-Json
+if ($fonts -isnot [array] -or $fonts.Count -ne 5) {
+    throw 'Expected exactly five font definitions in test-fonts.json.'
+}
+foreach ($font in $fonts) {
+    if ($font.file -isnot [string] -or [string]::IsNullOrWhiteSpace($font.file)) {
+        throw 'Each font definition must have a non-empty string file property.'
+    }
+}
 $UnityEditor = (Resolve-Path -LiteralPath $UnityEditor).Path
 $output = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutputDirectory)
 if (Test-Path -LiteralPath $output) { throw "Choose a new output directory: $output" }
@@ -50,6 +60,7 @@ $arguments = @(
     '-fontOutput', ('"{0}"' -f $build),
     '-logFile', ('"{0}"' -f $log)
 )
+Write-Host "Unity log: $log"
 $editor = Start-Process -FilePath $UnityEditor -ArgumentList $arguments -Wait -PassThru
 if ($editor.ExitCode -ne 0) { throw "Unity exited with $($editor.ExitCode). See $log" }
 

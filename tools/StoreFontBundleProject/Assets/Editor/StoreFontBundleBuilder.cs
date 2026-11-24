@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
@@ -57,6 +58,10 @@ public static class StoreFontBundleBuilder
             importer.customCharacters = mode == "static" ? SampleCharacters : "";
             importer.fontNames = mode == "os" ? new[] { importer.fontTTFName } : Array.Empty<string>();
             importer.SaveAndReimport();
+            string[] subAssets = AssetDatabase.LoadAllAssetsAtPath(asset)
+                .Select(item => item.GetType().Name + ":" + item.name).ToArray();
+            Debug.Log($"Imported {asset} | embed={importer.includeFontData} | font names=[{string.Join(", ", importer.fontNames)}]"
+                + $" | sub-assets=[{string.Join(", ", subAssets)}]");
             var font = AssetDatabase.LoadAssetAtPath<Font>(asset);
             if (font == null || font.dynamic != (mode != "static"))
                 throw new InvalidOperationException("Imported Font is invalid or has an unexpected mode: " + asset);
@@ -72,27 +77,53 @@ public static class StoreFontBundleBuilder
         var target = (BuildTarget)Enum.Parse(typeof(BuildTarget), targetName);
         var compression = mode == "embedded-raw" ? BuildAssetBundleOptions.UncompressedAssetBundle
             : BuildAssetBundleOptions.ChunkBasedCompression;
-        var manifest = BuildPipeline.BuildAssetBundles(output, builds.ToArray(),
-            compression | BuildAssetBundleOptions.ForceRebuildAssetBundle, target);
-        if (manifest == null) throw new InvalidOperationException("Unity did not build the AssetBundles.");
+        var options = compression | BuildAssetBundleOptions.ForceRebuildAssetBundle;
+        if (builds.Count > 1)
+        {
+            // Retain the combined manifest to show any cross-bundle edges Unity infers.
+            string diagnostics = Path.Combine(output, "combined-diagnostics");
+            var combined = BuildBundles(diagnostics, builds.ToArray(), options, target);
+            foreach (var build in builds)
+                LogDependencies(combined, build.assetBundleName, "Combined");
+        }
+
+        var pathsToVerify = new List<string>();
+        foreach (var build in builds)
+        {
+            foreach (string dependency in AssetDatabase.GetDependencies(build.assetNames[0], false))
+                if (dependency != build.assetNames[0])
+                    Debug.Log($"Imported dependency for {build.assetNames[0]}: {dependency}");
+
+            // Unity can place shared dependencies in other bundles in a combined build.
+            // Build one named bundle at a time so its implicit dependencies are included.
+            string isolated = Path.Combine(output, "individual", Path.GetFileNameWithoutExtension(build.assetBundleName));
+            var manifest = BuildBundles(isolated, new[] { build }, options, target);
+            var manifestNames = manifest.GetAllAssetBundles();
+            if (manifestNames.Length != 1 || manifestNames[0] != build.assetBundleName)
+                throw new InvalidDataException($"Unexpected bundles in {isolated}: [{string.Join(", ", manifestNames)}]");
+            if (LogDependencies(manifest, build.assetBundleName, "Individual"))
+                throw new InvalidDataException("External bundle dependencies are not supported: " + isolated);
+
+            string path = Path.Combine(isolated, build.assetBundleName);
+            if (new FileInfo(path).Length > 32L * 1024 * 1024)
+                throw new InvalidDataException("Bundle exceeds the game's 32 MiB limit: " + path);
+
+            var standalone = Open(path);
+            try { Verify(standalone, path, build.assetNames[0], mode); }
+            finally { standalone.Unload(true); }
+            Debug.Log("Editor verified standalone: " + build.assetBundleName);
+            pathsToVerify.Add(path);
+        }
+
         var openBundles = new List<AssetBundle>();
-        var verifiedAssets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         try
         {
-            foreach (var build in builds)
+            for (int i = 0; i < builds.Count; i++)
             {
-                string path = Path.Combine(output, build.assetBundleName);
-                if (manifest.GetAllDependencies(build.assetBundleName).Length != 0)
-                    throw new InvalidDataException("External bundle dependencies are not supported: " + path);
-                if (new FileInfo(path).Length > 32L * 1024 * 1024)
-                    throw new InvalidDataException("Bundle exceeds the game's 32 MiB limit: " + path);
-                if (!verifiedAssets.Add(build.assetNames[0]))
-                    throw new InvalidDataException("Duplicate asset path: " + build.assetNames[0]);
-
-                var bundle = AssetBundle.LoadFromFile(path, 0, 0);
-                if (bundle == null) throw new InvalidDataException("Editor rejected newly generated bundle: " + path);
+                string path = pathsToVerify[i];
+                var bundle = Open(path);
                 openBundles.Add(bundle);
-                Verify(bundle, path, build.assetNames[0], mode);
+                Verify(bundle, path, builds[i].assetNames[0], mode);
             }
             Debug.Log($"Editor verified {openBundles.Count} bundles open together without dependencies.");
         }
@@ -101,6 +132,38 @@ public static class StoreFontBundleBuilder
             foreach (var bundle in openBundles)
                 bundle.Unload(true);
         }
+
+        for (int i = 0; i < builds.Count; i++)
+        {
+            string destination = Path.Combine(output, builds[i].assetBundleName);
+            File.Copy(pathsToVerify[i], destination, true);
+            File.Copy(pathsToVerify[i] + ".manifest", destination + ".manifest", true);
+        }
+    }
+
+    private static AssetBundleManifest BuildBundles(string directory, AssetBundleBuild[] builds,
+        BuildAssetBundleOptions options, BuildTarget target)
+    {
+        Directory.CreateDirectory(directory);
+        var manifest = BuildPipeline.BuildAssetBundles(directory, builds, options, target);
+        if (manifest == null) throw new InvalidOperationException("Unity did not build the AssetBundles: " + directory);
+        return manifest;
+    }
+
+    private static bool LogDependencies(AssetBundleManifest manifest, string name, string phase)
+    {
+        string[] direct = manifest.GetDirectDependencies(name);
+        string[] all = manifest.GetAllDependencies(name);
+        string[] indirect = all.Except(direct, StringComparer.Ordinal).ToArray();
+        Debug.Log($"{phase} dependencies for {name} | direct=[{string.Join(", ", direct)}] | indirect=[{string.Join(", ", indirect)}]");
+        return direct.Length != 0 || all.Length != 0;
+    }
+
+    private static AssetBundle Open(string path)
+    {
+        var bundle = AssetBundle.LoadFromFile(path, 0, 0);
+        if (bundle == null) throw new InvalidDataException("Editor could not open bundle: " + path);
+        return bundle;
     }
 
     private static void Verify(AssetBundle bundle, string path, string expectedAsset, string mode)
@@ -119,9 +182,10 @@ public static class StoreFontBundleBuilder
         if (font == null || font.dynamic != (mode != "static"))
             throw new InvalidDataException("Font not readable or unexpected dynamic flag.");
         if (font.dynamic) font.RequestCharactersInTexture("Aa0日本語", 18);
-        var atlas = font.material == null ? null : font.material.mainTexture;
+        var material = font.material;
+        var atlas = material == null ? null : material.mainTexture;
         Debug.Log($"Editor Font: {font.name}; dynamic={font.dynamic}; A={font.HasCharacter('A')}; "
-            + $"日={font.HasCharacter('日')}; atlas={(atlas == null ? "missing" : atlas.width + "x" + atlas.height)}");
+            + $"日={font.HasCharacter('日')}; material={material?.name ?? "missing"}; atlas={(atlas == null ? "missing" : atlas.width + "x" + atlas.height)}");
     }
 
     private static string Option(string name, string fallback)

@@ -35,10 +35,18 @@ $run = Join-Path $env:TEMP ("hsrtimer-font-stage9-" + [guid]::NewGuid())
 .\scripts\New-StoreFontTestBundles.ps1 -OutputDirectory $run
 Get-ChildItem -Path "$run\group-*\*.bundle"
 Import-Csv "$run\bundle-hashes.csv"
-Select-String -LiteralPath "$run\Unity.log" -Pattern 'Editor opened','Editor Font','Editor verified'
+Select-String -LiteralPath "$run\Unity.log" -Pattern 'dependencies for','Imported','Editor Font','Editor verified'
 ```
 
 このスクリプトはサイズと SHA256 を照合してから、StandaloneWindows64 向けに Dynamic Font、Include Font Data 有効、LZ4HC で作ります。非圧縮の場合は新しい出力フォルダーを指定し `-Mode embedded-raw` を追加します。出力先の `group-a` は Noto 3件、`group-b` は Roboto 2件です。Editor 検証では各バンドルの依存関係が空、アセット名が一意、想定の Font と dynamic 属性が取得できることを確認し、すべて同時に開けるか試してからアンロードします。従来の単一フォント向け手順も使用できます。
+
+Windows PowerShell 5.1 と PowerShell 7 で同じコマンドを使います。ダウンロード前に JSON の5件と各 `file` が文字列であることを検証します。Unity の起動時に表示されるログの場所は `$run\Unity.log` です。
+
+初回の Windows ログでは、5件のインポートとビルドに成功した後、JP Bold の外部依存チェックで停止しました。そのログからは依存先や参照元のアセットを特定できません。今回のビルドは次の順で検証します。
+
+- `build\combined-diagnostics` に比較用の一括ビルドのマニフェストを残し、ログに全バンドルの直接依存と間接依存のみの一覧を記録します。インポートしたサブアセット、フォント名指定、参照アセットのパスと、ロードした Font の Material・アトラスも記録します。
+- `build\individual` で、固有のバンドル名とアセットパスを使い、フォント1件ずつビルドします。個別マニフェストに外部依存がある場合は、依存先を記録して停止します。
+- 個別に開いてアンロードした後、全件を同時に開き直します。各段階で想定したアセット名と Dynamic 属性を照合します。成功した個別ビルドだけが `group-a` と `group-b` にコピーされます。
 
 ## ゲーム内で検証する
 
