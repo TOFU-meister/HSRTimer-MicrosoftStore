@@ -786,6 +786,21 @@ try
     string fontRoot = Path.Combine(fontTestRoot, "fonts");
     Directory.CreateDirectory(fontRoot);
     string savedPath = Path.Combine(fontRoot, "saved.bundle");
+    StoreDataPolicy.InitialiseDataRoot(fontTestRoot, null);
+    for (int i = 0; i < 5; i++)
+        File.WriteAllText(Path.Combine(fontRoot, $"font-{i}.bundle"), "UnityFS\0");
+    File.WriteAllText(Path.Combine(fontRoot, "ignore.ttf"), "");
+    int openedBeforeList = TestFontBundle.Opened;
+    Equal(5, StoreFontDiagnostics.ListFontBundles(fontTestRoot).Count, "catalog includes more bundles than slot limit");
+    Equal(openedBeforeList, TestFontBundle.Opened, "catalog does not open bundles");
+
+    var previewBundle = TestFontBundle.Next = new();
+    var choices = StoreFontDiagnostics.ReadFontChoices(fontTestRoot, "font-4.bundle", out var previewPath,
+        (path, route) => StoreFontBundle.Load(path, typeof(TestFontBundle), () => new Il2CppSystem.Type(), route));
+    Equal(1, choices.Count, "opens a specific bundle lazily");
+    Equal(false, StoreFontDiagnostics.IsApplied, "preview selection does not touch HUD");
+    StoreFontDiagnostics.DropUnusedBundle(previewPath);
+    Equal(1, previewBundle.Unloads, "discard unloads preview-only bundle");
     var savedSettings = new SettingsModel();
     int attempts = 0;
     StoreFontBundle LoadSaved(string path, StoreFontBundle.Route route)
@@ -866,6 +881,25 @@ try
     StoreFontDiagnostics.MaintainBundles(now + 2000, LoadSaved);
     Equal(true, ReferenceEquals(recovered.Font, StoreFontDiagnostics.ActiveFont()), "saved font rebinds after recovery");
     Equal(UnityEngine.FontStyle.Bold, StoreFontDiagnostics.ActiveStyle, "recovery keeps saved style");
+    string settingsPath = PersistenceService.PathFor("settings.ini");
+    Directory.CreateDirectory(settingsPath);
+    StoreHudFontPreference.TryExternal("saved.bundle", "assets/fonts/test.ttf", StoreHudFontStyle.Normal, out var normal);
+    Equal("HUD_FONT_SAVE_FAILED", StoreFontDiagnostics.ApplyAndSaveFont(savedSettings, normal, fontTestRoot),
+        "failed write reported to font panel");
+    Equal(StoreHudFontStyle.Bold, savedSettings.HudFont.Style, "failed write rolls back in-memory preference");
+    Equal(UnityEngine.FontStyle.Bold, StoreFontDiagnostics.ActiveStyle, "failed write leaves HUD unchanged");
+    Directory.Delete(settingsPath);
+    Equal<string>(null, StoreFontDiagnostics.ApplyAndSaveFont(savedSettings, normal, fontTestRoot), "shared verified font persists");
+    var reread = new SettingsModel();
+    reread.Load();
+    Equal(StoreHudFontStyle.Normal, reread.HudFont.Style, "font panel commits weight to disk");
+    Equal(UnityEngine.FontStyle.Normal, StoreFontDiagnostics.ActiveStyle, "committed HUD weight updates immediately");
+    Equal<string>(null, StoreFontDiagnostics.ApplyAndSaveFont(savedSettings, StoreHudFontPreference.Imgui, fontTestRoot),
+        "font panel resets to IMGUI");
+    reread.Load();
+    Equal(false, reread.HudFont.IsExternal, "reset clears persistent identifier");
+    Equal(false, StoreFontDiagnostics.IsApplied, "reset clears runtime selection");
+    Equal(1, recovered.Unloads, "reset releases previous saved bundle");
     StoreFontDiagnostics.Release();
     StoreFontDiagnostics.Release();
     Equal(1, savedBundle.Unloads, "invalidated bundle unloaded once");

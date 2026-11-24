@@ -274,3 +274,25 @@ MARKER_OBJECT_UNRESOLVED:The target object could not be found in this level.
 MARKER_HUD_EDIT_MODE:★ MARKER EDIT MODE ON ★
 MARKER_PB_LABEL:PB
 MARKER_NO_PB:--
+
+# ===== Store HUD font =====
+HUD_FONT_TITLE:HUD Font
+HUD_FONT_DEFAULT:Default (IMGUI)
+HUD_FONT_SAVED:Saved: {0}
+HUD_FONT_CURRENT:Active: {0}
+HUD_FONT_SELECT:Select font: {0}
+HUD_FONT_ASSET:Font inside bundle: {0}
+HUD_FONT_NORMAL:Weight: Normal
+HUD_FONT_BOLD:Weight: Bold
+HUD_FONT_SAMPLE:Game Time: 00:12.345\nLevel Time: 00:08.123\nBest Time: 00:07.891
+HUD_FONT_APPLY:Apply & Save
+HUD_FONT_CANCEL:Discard font edits
+HUD_FONT_RELOAD:Reload font list
+HUD_FONT_FOLDER:Open fonts folder
+HUD_FONT_EMPTY:No font bundles found.
+HUD_FONT_SAVED_OK:HUD font saved.
+HUD_FONT_SAVE_FAILED:Could not save the HUD font. The previous setting is still active.
+HUD_FONT_MISSING:The selected bundle is missing.
+HUD_FONT_BUSY:The bundle is recovering or the four-bundle limit is reached. Release unused fonts in Diagnostics and try again.
+HUD_FONT_UNAVAILABLE:The bundle could not be read safely, or the selected font is unavailable.
+HUD_FONT_FOLDER_FAILED:Could not open the fonts folder.

@@ -274,3 +274,25 @@ MARKER_OBJECT_UNRESOLVED:在本关卡中找不到目标物体。
 MARKER_HUD_EDIT_MODE:★ 标记编辑模式已开启 ★
 MARKER_PB_LABEL:PB
 MARKER_NO_PB:--
+
+# ===== Store HUD font =====
+HUD_FONT_TITLE:HUD 字体
+HUD_FONT_DEFAULT:默认 (IMGUI)
+HUD_FONT_SAVED:已保存: {0}
+HUD_FONT_CURRENT:当前使用: {0}
+HUD_FONT_SELECT:选择字体: {0}
+HUD_FONT_ASSET:资源包内的字体: {0}
+HUD_FONT_NORMAL:字重: 常规
+HUD_FONT_BOLD:字重: 粗体
+HUD_FONT_SAMPLE:游戏时间: 00:12.345\n关卡时间: 00:08.123\n最佳时间: 00:07.891
+HUD_FONT_APPLY:应用并保存
+HUD_FONT_CANCEL:放弃字体更改
+HUD_FONT_RELOAD:重新加载字体列表
+HUD_FONT_FOLDER:打开 fonts 文件夹
+HUD_FONT_EMPTY:没有找到字体资源包。
+HUD_FONT_SAVED_OK:HUD 字体已保存。
+HUD_FONT_SAVE_FAILED:保存 HUD 字体失败，仍使用之前的设置。
+HUD_FONT_MISSING:找不到所选资源包。
+HUD_FONT_BUSY:正在恢复资源包，或已达到四个资源包的上限。请在诊断中释放未使用的字体后重试。
+HUD_FONT_UNAVAILABLE:无法安全读取资源包，或所选字体不可用。
+HUD_FONT_FOLDER_FAILED:无法打开 fonts 文件夹。

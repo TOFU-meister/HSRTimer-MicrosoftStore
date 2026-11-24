@@ -140,7 +140,10 @@ namespace HSRTimer
             if (_applied != null)
                 SuspendHud("The applied font was unloaded. HUD restored to the available default.");
             else
+            {
                 ClearSavedFont();
+                SavedFontIssue = "HUD_FONT_UNAVAILABLE";
+            }
             return _saved?.Font;
         }
 
@@ -148,69 +151,161 @@ namespace HSRTimer
         internal static int ResolveHudSize(int layoutSize) => IsSessionApplied ? ActiveSize : layoutSize;
         internal static bool IsApplied => Effective != null;
 
+        internal static string CurrentFontName => Effective?.Name;
+        internal static string SavedFontIssue { get; private set; }
+
+        internal static string FontsDirectory(string dataRoot)
+        {
+            string path = Path.GetFullPath(Path.Combine(dataRoot, "fonts"));
+            StoreDataPolicy.EnsureSafePath(dataRoot, path);
+            return path;
+        }
+
+        internal static IReadOnlyList<string> ListFontBundles(string dataRoot)
+        {
+            string root = FontsDirectory(dataRoot);
+            var names = new List<string>();
+            if (!Directory.Exists(root)) return names;
+            foreach (string path in Directory.EnumerateFiles(root))
+            {
+                string name = Path.GetFileName(path);
+                if (!StoreHudFontPreference.TryExternal(name, "font", StoreHudFontStyle.Normal, out _)) continue;
+                try { StoreDataPolicy.EnsureSafePath(root, path); }
+                catch (IOException) { continue; }
+                catch (UnauthorizedAccessException) { continue; }
+                names.Add(name);
+            }
+            names.Sort(StringComparer.OrdinalIgnoreCase);
+            return names;
+        }
+
+        internal sealed record FontChoice(string AssetName, string Name, Font Font);
+
+        internal static IReadOnlyList<FontChoice> ReadFontChoices(string dataRoot, string name, out string newPath,
+            Func<string, StoreFontBundle.Route, StoreFontBundle> load = null)
+        {
+            newPath = null;
+            if (!StoreHudFontPreference.TryExternal(name, "font", StoreHudFontStyle.Normal, out _))
+                throw new InvalidDataException("Invalid bundle filename.");
+            string root = FontsDirectory(dataRoot);
+            string path = Path.GetFullPath(Path.Combine(root, name));
+            StoreDataPolicy.EnsureSafePath(root, path);
+            if (!File.Exists(path)) throw new FileNotFoundException();
+
+            bool found = Bundles.TryGetValue(path, out var slot);
+            if ((found && slot.Bundle == null) || (!found && Bundles.Count >= StoreFontBundle.MaxBundles))
+                throw new InvalidOperationException("Bundle busy or limit reached.");
+
+            StoreFontBundle bundle = slot?.Bundle;
+            if (!found)
+            {
+                StoreDataPolicy.EnsureSafePath(root, path);
+                bundle = load == null ? StoreFontBundle.Load(path, StoreFontBundle.Route.File, _ => { })
+                    : load(path, StoreFontBundle.Route.File);
+            }
+
+            var choices = new List<FontChoice>();
+            bool accepted = false;
+            try
+            {
+                if (Health(bundle) != null) throw new InvalidDataException("Unhealthy bundle.");
+                for (int i = 0; i < bundle.Fonts.Count; i++)
+                {
+                    Font font = bundle.Fonts[i];
+                    string asset = bundle.FontNames[i];
+                    if (font != null && font.dynamic
+                        && StoreHudFontPreference.TryExternal(name, asset, StoreHudFontStyle.Normal, out _))
+                        choices.Add(new FontChoice(asset, font.name, font));
+                }
+                if (choices.Count == 0) throw new InvalidDataException("No usable Dynamic Font.");
+                accepted = true;
+            }
+            finally
+            {
+                if (!found && !accepted) DisposeBundle(bundle);
+            }
+            if (!found)
+            {
+                RegisterBundle(path, StoreFontBundle.Route.File, bundle, selectNew: false);
+                newPath = path;
+            }
+            return choices;
+        }
+
+        internal static void DropUnusedBundle(string path)
+        {
+            if (path == null || MatchesAsset(path, _savedPath) || MatchesAsset(path, _applied?.BundlePath)
+                || (_pendingHud is { } pending && MatchesAsset(path, pending.Path))
+                || !Bundles.Remove(path, out var slot))
+                return;
+            var selected = Candidates.Count > 0 ? Candidates[_selected] : null;
+            Candidates.RemoveAll(candidate => MatchesAsset(candidate.BundlePath, path));
+            if (_pendingPreview is { } preview && MatchesAsset(preview.Path, path)) _pendingPreview = null;
+            Select(Math.Max(0, Candidates.IndexOf(selected)));
+            DisposeBundle(slot.Bundle);
+        }
+
+        private static Candidate ResolveFontChoice(StoreHudFontPreference preference, string dataRoot, out string newPath,
+            Func<string, StoreFontBundle.Route, StoreFontBundle> load = null)
+        {
+            ReadFontChoices(dataRoot, preference.BundleFileName, out newPath, load);
+            string path = Path.Combine(FontsDirectory(dataRoot), preference.BundleFileName);
+            return FindSavedCandidate(path, preference.AssetName)
+                ?? throw new InvalidDataException("Saved asset is unavailable.");
+        }
+
+        internal static string FontIssue(Exception error) => error switch
+        {
+            FileNotFoundException => "HUD_FONT_MISSING",
+            InvalidOperationException => "HUD_FONT_BUSY",
+            _ => "HUD_FONT_UNAVAILABLE",
+        };
+
         internal static void RestoreSavedFont(StoreHudFontPreference preference, string dataRoot,
             Func<string, StoreFontBundle.Route, StoreFontBundle> load = null)
         {
             if (!preference.IsExternal) return;
-
-            string stage = "path validation";
-            string name = preference.BundleFileName;
-            Record($"Restoring saved HUD font: {name} / {preference.AssetName} ({preference.Style}).");
+            string newPath = null;
             try
             {
-                string fonts = Path.GetFullPath(Path.Combine(dataRoot, "fonts"));
-                string path = Path.GetFullPath(Path.Combine(fonts, name));
-                StoreDataPolicy.EnsureSafePath(fonts, path);
-                stage = "bundle missing or inaccessible";
-                if (!File.Exists(path)) throw new FileNotFoundException();
-
-                stage = "shared bundle availability or capacity";
-                bool found = Bundles.TryGetValue(path, out var slot);
-                if ((found && slot.Bundle == null) || (!found && Bundles.Count >= StoreFontBundle.MaxBundles))
-                    throw new InvalidOperationException();
-
-                if (!found)
-                {
-                    stage = "file validation or bundle load";
-                    StoreDataPolicy.EnsureSafePath(fonts, path);
-                    var bundle = load == null ? StoreFontBundle.Load(path, StoreFontBundle.Route.File, _ => { })
-                        : load(path, StoreFontBundle.Route.File);
-                    stage = "font asset missing, non-dynamic or invalid";
-                    bool accepted = false;
-                    try
-                    {
-                        if (Health(bundle) != null) throw new InvalidDataException();
-                        for (int i = 0; i < bundle.Fonts.Count; i++)
-                        {
-                            if (MatchesAsset(bundle.FontNames[i], preference.AssetName) && bundle.Fonts[i] != null
-                                && bundle.Fonts[i].dynamic)
-                                accepted = true;
-                        }
-                        if (!accepted) throw new InvalidDataException();
-                    }
-                    finally
-                    {
-                        if (!accepted) DisposeBundle(bundle);
-                    }
-
-                    stage = "bundle registration";
-                    RegisterBundle(path, StoreFontBundle.Route.File, bundle, selectNew: false);
-                }
-
-                stage = "font asset missing, non-dynamic or invalid";
-                if (Health(Bundles[path].Bundle) != null) throw new InvalidDataException();
-                var candidate = FindSavedCandidate(path, preference.AssetName);
-                if (candidate == null) throw new InvalidDataException();
-                _savedPath = path;
-                _savedAsset = preference.AssetName;
-                _savedStyle = preference.Style == StoreHudFontStyle.Bold ? FontStyle.Bold : FontStyle.Normal;
-                _saved = candidate;
-                Record($"Saved HUD font bundle {name} ready. Matched {candidate.AssetName} to {candidate.Name}.");
+                Record($"Restoring saved HUD font: {preference.BundleFileName} / {preference.AssetName} ({preference.Style}).");
+                SetSavedFont(preference, ResolveFontChoice(preference, dataRoot, out newPath, load));
+                Record($"Saved HUD font bundle {preference.BundleFileName} ready. Matched {_saved.AssetName} to {_saved.Name}.");
             }
             catch (Exception error)
             {
-                Record($"Saved HUD font {name}: {stage} ({error.GetType().Name}). Using IMGUI when no session font is active.");
+                DropUnusedBundle(newPath);
+                SavedFontIssue = FontIssue(error);
+                Record($"Saved HUD font {preference.BundleFileName}: {SavedFontIssue} ({error.GetType().Name}). Using IMGUI when no session font is active.");
             }
+        }
+
+        internal static string ApplyAndSaveFont(SettingsModel settings, StoreHudFontPreference preference, string dataRoot)
+        {
+            Candidate candidate = null;
+            string newPath = null;
+            try
+            {
+                if (preference.IsExternal) candidate = ResolveFontChoice(preference, dataRoot, out newPath);
+                if (!settings.TrySaveHudFont(preference)) return "HUD_FONT_SAVE_FAILED";
+                string oldPath = _savedPath;
+                ResetHud("Saved HUD font selection changed.");
+                SetSavedFont(preference, candidate);
+                DropUnusedBundle(oldPath);
+                return null;
+            }
+            catch (Exception error) { return FontIssue(error); }
+            finally { DropUnusedBundle(newPath); }
+        }
+
+        private static void SetSavedFont(StoreHudFontPreference preference, Candidate candidate)
+        {
+            ClearSavedFont();
+            _savedPath = candidate?.BundlePath;
+            _savedAsset = candidate?.AssetName;
+            _savedStyle = preference.Style == StoreHudFontStyle.Bold ? FontStyle.Bold : FontStyle.Normal;
+            _saved = candidate;
+            SavedFontIssue = null;
         }
 
         private static bool MatchesAsset(string actual, string expected)
@@ -245,6 +340,7 @@ namespace HSRTimer
             if (_applied == null)
             {
                 ClearSavedFont();
+                SavedFontIssue = "HUD_FONT_UNAVAILABLE";
                 if (Warnings.Add("Saved Timer HUD")) Record($"Saved HUD font draw failed ({error.GetType().Name}). Using IMGUI.");
                 return;
             }
@@ -545,6 +641,7 @@ namespace HSRTimer
                 if (string.Equals(path, _savedPath, StringComparison.OrdinalIgnoreCase))
                 {
                     _saved = FindSavedCandidate(path, _savedAsset);
+                    if (_saved != null) SavedFontIssue = null;
                     if (_saved == null)
                         Record($"Saved HUD font asset {_savedAsset} is unavailable after recovering {Path.GetFileName(path)}.");
                 }
@@ -574,7 +671,11 @@ namespace HSRTimer
                 if (candidate.BundlePath == path) Record("Withdrawn candidate: " + Identify(candidate), log: false);
             Candidate selected = Candidates.Count > 0 ? Candidates[_selected] : null;
             if (selected?.BundlePath == path) _pendingPreview = (path, selected.AssetName);
-            if (string.Equals(path, _savedPath, StringComparison.OrdinalIgnoreCase)) ClearSavedFont();
+            if (string.Equals(path, _savedPath, StringComparison.OrdinalIgnoreCase))
+            {
+                ClearSavedFont();
+                SavedFontIssue = "HUD_FONT_UNAVAILABLE";
+            }
             if (_applied?.BundlePath == path) SuspendHud("External font unavailable. Using IMGUI while recovering.");
             Candidates.RemoveAll(candidate => candidate.BundlePath == path);
             int remainingIndex = selected == null ? -1 : Candidates.IndexOf(selected);

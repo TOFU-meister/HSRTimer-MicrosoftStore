@@ -31,6 +31,9 @@ namespace HSRTimer
         private readonly HashSet<int> _loggedPageFailures = new HashSet<int>();
 #endif
         private bool _visible;
+#if STORE_IL2CPP
+        private readonly StoreHudFontPanel _hudFontPanel = new StoreHudFontPanel();
+#endif
 
         /// <summary>Whether the panel is currently shown on screen.</summary>
         public bool IsVisible => _visible;
@@ -136,6 +139,9 @@ namespace HSRTimer
 
         private void OnDestroy()
         {
+#if STORE_IL2CPP
+            _hudFontPanel.Close();
+#endif
             // Game exit / plugin unload: persist any unsaved edits.
             if (ConfigService.Instance != null)
                 ConfigService.Instance.SaveSettings();
@@ -161,6 +167,7 @@ namespace HSRTimer
             _visible = !_visible;
 #if STORE_IL2CPP
             PanelTextInput.Cancel();
+            if (!_visible) _hudFontPanel.Close();
             _failedPages.Clear();
 #endif
             if (!_visible && ConfigService.Instance != null)
@@ -177,6 +184,9 @@ namespace HSRTimer
                 _presetNewName = "";
                 _presetErrorKey = null;
                 _timerHudOpen = false;
+#if STORE_IL2CPP
+                _hudFontPanel.Close();
+#endif
                 _expandedColumn = 0;
                 _confirmDeleteColumn = 0;
                 _leaderboardOpen = false;
@@ -367,6 +377,9 @@ namespace HSRTimer
                     SettingsPanelTabRegistry.Instance.Deactivate(_tab - _tabKeys.Length);
                     _pendingRebind = null;
                     _scroll = Vector2.zero;
+#if STORE_IL2CPP
+                    if (_tab == 2) _hudFontPanel.Close();
+#endif
                     _tab = nextTab;
                     _presetDeleting = false;
                     _timerHudOpen = false;
@@ -716,6 +729,9 @@ namespace HSRTimer
             if (GUILayout.Button(loc.Get("PANEL_BACK"), _button))
             {
                 _timerHudOpen = false;
+#if STORE_IL2CPP
+                _hudFontPanel.Close();
+#endif
                 _expandedColumn = 0;
                 _confirmDeleteColumn = 0;
                 return;
@@ -729,6 +745,10 @@ namespace HSRTimer
             layout.OffsetX = FloatFieldRow(loc.Get("PANEL_OFFSET_X"), layout.OffsetX);
             layout.OffsetY = FloatFieldRow(loc.Get("PANEL_OFFSET_Y"), layout.OffsetY);
             layout.FontSize = Mathf.RoundToInt(SliderRow(loc.Get("PANEL_FONT_SIZE"), layout.FontSize, 8, 72));
+#if STORE_IL2CPP
+            Section(loc.Get("HUD_FONT_TITLE"));
+            _hudFontPanel.Draw(s, layout.FontSize, loc, _button, _small);
+#endif
             ColorRow(loc, "PANEL_COLOR_A", layout.ColorA, c => layout.ColorA = c);
             ColorRow(loc, "PANEL_COLOR_B", layout.ColorB, c => layout.ColorB = c);
             s.OnlyRecordFirstWakeUpTime = Toggle(loc.Get("SETTINGS_ONLY_RECORD_FIRST_WAKE_UP_TIME"), s.OnlyRecordFirstWakeUpTime);

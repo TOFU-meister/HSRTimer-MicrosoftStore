@@ -1,3 +1,25 @@
 __LANG_NAME__:日本語（未翻訳項目は英語）
 SETTINGS_AUTOMATIC_PB_BACKUP:PBの自動バックアップ
 SETTINGS_RETRY_LEVEL_OVERRIDE_STORE:リトライマップ（名前またはID）
+
+# ===== Store HUD font =====
+HUD_FONT_TITLE:HUDフォント
+HUD_FONT_DEFAULT:標準（IMGUI）
+HUD_FONT_SAVED:保存済み: {0}
+HUD_FONT_CURRENT:現在の表示: {0}
+HUD_FONT_SELECT:フォントを選択: {0}
+HUD_FONT_ASSET:Bundle内のフォント: {0}
+HUD_FONT_NORMAL:太さ: 標準
+HUD_FONT_BOLD:太さ: 太字
+HUD_FONT_SAMPLE:ゲーム時間: 00:12.345\nステージ時間: 00:08.123\nベスト: 00:07.891
+HUD_FONT_APPLY:適用して保存
+HUD_FONT_CANCEL:フォントの編集を取り消す
+HUD_FONT_RELOAD:フォント一覧を再読み込み
+HUD_FONT_FOLDER:fontsフォルダーを開く
+HUD_FONT_EMPTY:フォントBundleが見つかりません。
+HUD_FONT_SAVED_OK:HUDフォントを保存しました。
+HUD_FONT_SAVE_FAILED:保存できませんでした。以前の設定を引き続き使います。
+HUD_FONT_MISSING:選択したBundleが見つかりません。
+HUD_FONT_BUSY:Bundleの復旧中か、読み込み上限の4件に達しています。診断画面で未使用フォントを解放して再試行してください。
+HUD_FONT_UNAVAILABLE:Bundleを安全に読み込めないか、選択したフォントを利用できません。
+HUD_FONT_FOLDER_FAILED:fontsフォルダーを開けませんでした。

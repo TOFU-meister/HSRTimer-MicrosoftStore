@@ -303,7 +303,28 @@ namespace HSRTimer
             }
         }
 
-        public void Save()
+#if STORE_IL2CPP
+        internal bool TrySaveHudFont(StoreHudFontPreference preference)
+        {
+            var previous = HudFont;
+            HudFont = preference;
+            try
+            {
+                if (TrySave()) return true;
+            }
+            catch
+            {
+                HudFont = previous;
+                throw;
+            }
+            HudFont = previous;
+            return false;
+        }
+#endif
+
+        public void Save() => TrySave();
+
+        private bool TrySave()
         {
             var kv = new Dictionary<string, string>
             {
@@ -355,7 +376,7 @@ namespace HSRTimer
             {
                 ["Current"] = string.IsNullOrEmpty(CurrentPreset) ? PresetStore.DefaultPresetName : CurrentPreset,
             };
-            PersistenceService.Write(
+            return PersistenceService.TryWrite(
                 PersistenceService.PathFor("settings.ini"),
                 new[]
                 {

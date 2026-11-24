@@ -115,6 +115,9 @@ namespace HSRTimer
 
         /// <summary>Write a sectioned file from a list of (section,key,value) tuples.</summary>
         public static void Write(string filePath, IEnumerable<KeyValuePair<string, IDictionary<string, string>>> sections, string headerComment = null)
+            => TryWrite(filePath, sections, headerComment);
+
+        internal static bool TryWrite(string filePath, IEnumerable<KeyValuePair<string, IDictionary<string, string>>> sections, string headerComment = null)
         {
             try
             {
@@ -141,10 +144,12 @@ namespace HSRTimer
 #else
                 File.WriteAllText(filePath, sb.ToString(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 #endif
+                return true;
             }
             catch (Exception ex)
             {
                 Plugin.Logger.LogWarning($"HSRTimer: failed to write {System.IO.Path.GetFileName(filePath)}: {ex.Message}");
+                return false;
             }
         }
 
