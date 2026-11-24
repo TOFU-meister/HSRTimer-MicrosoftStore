@@ -20,24 +20,56 @@ foreach ($font in $fonts) {
         throw 'Each font definition must have a non-empty string file property.'
     }
 }
+$stems = @{}
+foreach ($font in $fonts) {
+    $stem = [IO.Path]::GetFileNameWithoutExtension($font.file).ToLowerInvariant()
+    if ($stems.ContainsKey($stem)) { throw "Duplicate font bundle name: $stem" }
+    $stems[$stem] = $true
+}
 $UnityEditor = (Resolve-Path -LiteralPath $UnityEditor).Path
 $output = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutputDirectory)
 if (Test-Path -LiteralPath $output) { throw "Choose a new output directory: $output" }
 
-$project = Join-Path $output 'UnityProject'
-$fontFolder = Join-Path $project 'Assets\Fonts'
+$projects = Join-Path $output 'projects'
+$logs = Join-Path $output 'logs'
 $licenses = Join-Path $output 'licenses'
 $build = Join-Path $output 'build'
-New-Item -ItemType Directory -Path $fontFolder, $licenses, $build | Out-Null
-Copy-Item -Recurse -LiteralPath (Join-Path $source 'Assets\Editor') -Destination (Join-Path $project 'Assets')
-foreach ($directory in 'Packages', 'ProjectSettings') {
-    New-Item -ItemType Directory -Path (Join-Path $project $directory) | Out-Null
-}
-foreach ($file in 'Packages\manifest.json', 'ProjectSettings\ProjectVersion.txt') {
-    Copy-Item -LiteralPath (Join-Path $source $file) -Destination (Join-Path $project $file)
+New-Item -ItemType Directory -Path $projects, $logs, $licenses, $build | Out-Null
+
+function New-FontProject([string]$Project) {
+    $assets = Join-Path $Project 'Assets'
+    New-Item -ItemType Directory -Path $assets | Out-Null
+    Copy-Item -Recurse -LiteralPath (Join-Path $source 'Assets\Editor') -Destination $assets
+    foreach ($directory in 'Packages', 'ProjectSettings') {
+        New-Item -ItemType Directory -Path (Join-Path $Project $directory) | Out-Null
+    }
+    foreach ($file in 'Packages\manifest.json', 'ProjectSettings\ProjectVersion.txt') {
+        Copy-Item -LiteralPath (Join-Path $source $file) -Destination (Join-Path $Project $file)
+    }
 }
 
+function Invoke-FontUnity([string]$Project, [string]$Method, [string]$BundleDirectory, [string]$Log) {
+    $arguments = @(
+        '-batchmode', '-quit', '-buildTarget', 'Win64',
+        '-projectPath', ('"{0}"' -f $Project),
+        '-executeMethod', $Method,
+        '-fontMode', $Mode,
+        '-fontOutput', ('"{0}"' -f $BundleDirectory),
+        '-logFile', ('"{0}"' -f $Log)
+    )
+    Write-Host "Unity log: $Log"
+    $editor = Start-Process -FilePath $UnityEditor -ArgumentList $arguments -Wait -PassThru
+    if ($editor.ExitCode -ne 0) { throw "Unity exited with $($editor.ExitCode). See $Log" }
+    if (-not (Test-Path -LiteralPath $Log -PathType Leaf)) { throw "Missing Unity log: $Log" }
+}
+
+$bundleNames = @{}
 foreach ($font in $fonts) {
+    $stem = [IO.Path]::GetFileNameWithoutExtension($font.file).ToLowerInvariant()
+    $project = Join-Path $projects $stem
+    New-FontProject $project
+    $fontFolder = Join-Path $project 'Assets\Fonts'
+    New-Item -ItemType Directory -Path $fontFolder | Out-Null
     $fontPath = Join-Path $fontFolder $font.file
     Invoke-WebRequest -UseBasicParsing -Uri $font.url -OutFile $fontPath
     if ((Get-Item -LiteralPath $fontPath).Length -ne $font.bytes -or
@@ -49,33 +81,29 @@ foreach ($font in $fonts) {
     if (-not (Test-Path -LiteralPath $licensePath)) {
         Invoke-WebRequest -UseBasicParsing -Uri $font.licenseUrl -OutFile $licensePath
     }
+
+    $name = "$stem-$Mode.bundle"
+    $fontBuild = Join-Path $project 'Build'
+    $log = Join-Path $logs "$stem.log"
+    Invoke-FontUnity $project 'StoreFontBundleBuilder.BuildIsolatedFont' $fontBuild $log
+    if (-not (Select-String -LiteralPath $log -Pattern "Editor verified standalone: $name" -SimpleMatch -Quiet)) {
+        throw "Unity did not verify the standalone bundle: $name. See $log"
+    }
+    $path = Join-Path $fontBuild $name
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Missing bundle: $path. See $log" }
+    $bundleNames[$font.file] = (Copy-Item -LiteralPath $path -Destination $build -PassThru).FullName
+    Copy-Item -LiteralPath "$path.manifest" -Destination $build
 }
 
+$verificationProject = Join-Path $output 'verify'
+New-FontProject $verificationProject
 $log = Join-Path $output 'Unity.log'
-$arguments = @(
-    '-batchmode', '-quit', '-buildTarget', 'Win64',
-    '-projectPath', ('"{0}"' -f $project),
-    '-executeMethod', 'StoreFontBundleBuilder.Build',
-    '-fontMode', $Mode,
-    '-fontOutput', ('"{0}"' -f $build),
-    '-logFile', ('"{0}"' -f $log)
-)
-Write-Host "Unity log: $log"
-$editor = Start-Process -FilePath $UnityEditor -ArgumentList $arguments -Wait -PassThru
-if ($editor.ExitCode -ne 0) { throw "Unity exited with $($editor.ExitCode). See $log" }
-
-$expectedVerification = "Editor verified $($fonts.Count) bundles open together without dependencies."
+Invoke-FontUnity $verificationProject 'StoreFontBundleBuilder.VerifyIsolatedFonts' $build $log
+$expectedVerification = "Editor verified $($fonts.Count) isolated bundles open together."
 if (-not (Select-String -LiteralPath $log -Pattern $expectedVerification -SimpleMatch -Quiet)) {
     throw "Unity did not record successful bundle verification. See $log"
 }
 
-$bundleNames = @{}
-foreach ($font in $fonts) {
-    $stem = [IO.Path]::GetFileNameWithoutExtension($font.file).ToLowerInvariant()
-    $path = Join-Path $build "$stem-$Mode.bundle"
-    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Missing bundle: $path. See $log" }
-    $bundleNames[$font.file] = $path
-}
 $result = foreach ($font in $fonts) {
     $group = Join-Path $output ("group-" + $font.group)
     if (-not (Test-Path -LiteralPath $group)) { New-Item -ItemType Directory -Path $group | Out-Null }
@@ -89,3 +117,32 @@ $result = foreach ($font in $fonts) {
 }
 $result | Export-Csv -LiteralPath (Join-Path $output 'bundle-hashes.csv') -NoTypeInformation -Encoding UTF8
 $result
+
+# Prior compressed output sizes from the stage 9 Windows run. Raw output has no comparable baseline.
+$previousBytes = @{
+    'notosanscjkjp-regular-embedded.bundle' = 30127272
+    'notosanscjkjp-bold-embedded.bundle' = 30127291
+    'notosanscjksc-regular-embedded.bundle' = 14732889
+    'roboto-regular-embedded.bundle' = 302793
+    'robotomono-regular-embedded.bundle' = 84507
+}
+$comparison = foreach ($font in $fonts) {
+    $name = [IO.Path]::GetFileName($bundleNames[$font.file])
+    $item = $result | Where-Object File -eq $name
+    $previous = $previousBytes[$name]
+    $saved = if ($previous) { $previous - $item.Bytes }
+    [pscustomobject]@{
+        Font = $font.file
+        SourceBytes = $font.bytes
+        PreviousBytes = $previous
+        NewBytes = $item.Bytes
+        SavedBytes = $saved
+        SavedPercent = if ($previous) { [math]::Round(100 * $saved / $previous, 2) }
+        SHA256 = $item.SHA256
+        FontCount = 1
+        DependencyCount = 0
+        StandaloneEditor = 'Passed'
+        ConcurrentEditor = 'Passed'
+    }
+}
+$comparison | Export-Csv -LiteralPath (Join-Path $output 'bundle-comparison.csv') -NoTypeInformation -Encoding UTF8

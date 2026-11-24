@@ -11,8 +11,74 @@ public static class StoreFontBundleBuilder
     private const string SampleCharacters = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
         + "!?%+-:.,/()[]日本語あいうえおアイウエオ記録更新简体中文繁體计时记录";
 
+    public static void BuildIsolatedFont()
+    {
+        string mode = Option("-fontMode", "embedded");
+        if (mode != "embedded" && mode != "embedded-raw")
+            throw new ArgumentException("Isolated fonts must embed the source font.");
+        if (Option("-fontTarget", "StandaloneWindows64") != "StandaloneWindows64")
+            throw new ArgumentException("Isolated fonts require StandaloneWindows64.");
+        if (Directory.GetFiles(Path.Combine(Application.dataPath, "Fonts")).Count(path =>
+            string.Equals(Path.GetExtension(path), ".ttf", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(Path.GetExtension(path), ".otf", StringComparison.OrdinalIgnoreCase)) != 1)
+            throw new InvalidDataException("The isolated project must contain exactly one source font.");
+        BuildCore(requireSingleFont: true);
+    }
+
+    public static void VerifyIsolatedFonts()
+    {
+        if (Application.unityVersion != "2019.4.24f1")
+            throw new InvalidOperationException("Use Unity Editor 2019.4.24f1 to match the Store player.");
+
+        string directory = Option("-fontOutput", "");
+        string[] paths = Directory.GetFiles(directory, "*.bundle");
+        if (paths.Length == 0) throw new InvalidDataException("No bundles to verify in " + directory);
+
+        var opened = new List<AssetBundle>();
+        var fontIds = new HashSet<int>();
+        var loadedFonts = new List<Font>();
+        try
+        {
+            foreach (string path in paths)
+            {
+                if (new FileInfo(path).Length > 32L * 1024 * 1024)
+                    throw new InvalidDataException("Bundle exceeds the game's 32 MiB limit: " + path);
+                var bundle = Open(path);
+                opened.Add(bundle);
+                var fonts = bundle.LoadAllAssets<Font>();
+                if (fonts.Length != 1 || fonts[0] == null || !fonts[0].dynamic)
+                    throw new InvalidDataException("Expected exactly one Dynamic Font in " + path);
+
+                var font = fonts[0];
+                if (!fontIds.Add(font.GetInstanceID()))
+                    throw new InvalidDataException("Another bundle returned the same Font instance: " + path);
+                const string digits = "0123456789";
+                loadedFonts.Add(font);
+                string sample = Path.GetFileName(path).StartsWith("notosanscjk", StringComparison.OrdinalIgnoreCase)
+                    ? SampleCharacters : digits;
+                font.RequestCharactersInTexture(sample, 18);
+                if (sample.Any(character => !font.HasCharacter(character)) ||
+                    font.material == null || font.material.mainTexture == null)
+                    throw new InvalidDataException("Missing sample glyphs or Font atlas in " + path);
+                Debug.Log($"Concurrent validation: {Path.GetFileName(path)} | Font={font.name} | fonts={fonts.Length}"
+                    + $" | materials={bundle.LoadAllAssets<Material>().Length} | textures={bundle.LoadAllAssets<Texture2D>().Length}"
+                    + $" | glyphs={sample.Length}/{sample.Length}");
+            }
+            if (loadedFonts.Any(font => font == null || font.material == null || font.material.mainTexture == null))
+                throw new InvalidDataException("A Font or atlas was lost while opening another bundle.");
+            Debug.Log($"Editor verified {opened.Count} isolated bundles open together.");
+        }
+        finally
+        {
+            foreach (var bundle in opened)
+                bundle.Unload(true);
+        }
+    }
+
     [MenuItem("Tools/HSRTimer/Build embedded font bundles")]
-    public static void Build()
+    public static void Build() => BuildCore(requireSingleFont: false);
+
+    private static void BuildCore(bool requireSingleFont)
     {
         if (Application.unityVersion != "2019.4.24f1")
             throw new InvalidOperationException("Use Unity Editor 2019.4.24f1 to match the Store player.");
@@ -109,7 +175,12 @@ public static class StoreFontBundleBuilder
                 throw new InvalidDataException("Bundle exceeds the game's 32 MiB limit: " + path);
 
             var standalone = Open(path);
-            try { Verify(standalone, path, build.assetNames[0], mode); }
+            try
+            {
+                Verify(standalone, path, build.assetNames[0], mode);
+                if (requireSingleFont && standalone.LoadAllAssets<Font>().Length != 1)
+                    throw new InvalidDataException("Unexpected additional Font assets in " + path);
+            }
             finally { standalone.Unload(true); }
             Debug.Log("Editor verified standalone: " + build.assetBundleName);
             pathsToVerify.Add(path);

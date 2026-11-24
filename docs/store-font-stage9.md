@@ -35,18 +35,19 @@ $run = Join-Path $env:TEMP ("hsrtimer-font-stage9-" + [guid]::NewGuid())
 .\scripts\New-StoreFontTestBundles.ps1 -OutputDirectory $run
 Get-ChildItem -Path "$run\group-*\*.bundle"
 Import-Csv "$run\bundle-hashes.csv"
-Select-String -LiteralPath "$run\Unity.log" -Pattern 'dependencies for','Imported','Editor Font','Editor verified'
+Import-Csv "$run\bundle-comparison.csv"
+Select-String -Path "$run\logs\*.log" -Pattern 'Individual dependencies','Editor verified standalone'
+Select-String -LiteralPath "$run\Unity.log" -Pattern 'Concurrent validation','Editor verified'
 ```
 
-このスクリプトはサイズと SHA256 を照合してから、StandaloneWindows64 向けに Dynamic Font、Include Font Data 有効、LZ4HC で作ります。非圧縮の場合は新しい出力フォルダーを指定し `-Mode embedded-raw` を追加します。出力先の `group-a` は Noto 3件、`group-b` は Roboto 2件です。Editor 検証では各バンドルの依存関係が空、アセット名が一意、想定の Font と dynamic 属性が取得できることを確認し、すべて同時に開けるか試してからアンロードします。従来の単一フォント向け手順も使用できます。
+Windows PowerShell 5.1 と PowerShell 7 で同じコマンドを使います。スクリプトはフォントごとの新しい `projects\<識別名>` に1ファイルだけ配置し、サイズと SHA256 を照合します。Unity 2019.4.24f1 が各プロジェクトに個別の `Library` を作成します。StandaloneWindows64 用の Dynamic Font を Include Font Data 有効、LZ4HC でビルドします。非圧縮は別の出力先を指定し `-Mode embedded-raw` を追加してください。
 
-Windows PowerShell 5.1 と PowerShell 7 で同じコマンドを使います。ダウンロード前に JSON の5件と各 `file` が文字列であることを検証します。Unity の起動時に表示されるログの場所は `$run\Unity.log` です。
+- `logs\<識別名>.log` にインポーター設定、依存関係、単独再ロード結果を記録します。各生成物とマニフェストを `build` に集約します。
+- フォントをインポートしていない `verify` プロジェクトが全5件を同時に開きます。各Bundleで32 MiB上限、Dynamic Font 1件、別インスタンス、字形サンプルとアトラスを確認します。検証ログは出力先直下の `Unity.log` です。
+- 成功すると `group-a` にNoto 3件、`group-b` にRoboto 2件を出力します。従来の `bundle-hashes.csv` は従来どおりです。`bundle-comparison.csv` には旧方式の実測容量との比較、ハッシュ、Font数、依存数、Editor検証結果が入ります。非圧縮は対応する旧実測値がないため、比較欄は空になります。
+- 検証結果を共有する場合は `logs\*.log`、`Unity.log`、`bundle-hashes.csv`、`bundle-comparison.csv`、必要に応じて `build\*.manifest` とゲーム内の診断レポートを提出してください。異常終了時は該当するEditorログを提出してください。
 
-初回の Windows ログでは、5件のインポートとビルドに成功した後、JP Bold の外部依存チェックで停止しました。そのログからは依存先や参照元のアセットを特定できません。今回のビルドは次の順で検証します。
-
-- `build\combined-diagnostics` に比較用の一括ビルドのマニフェストを残し、ログに全バンドルの直接依存と間接依存のみの一覧を記録します。インポートしたサブアセット、フォント名指定、参照アセットのパスと、ロードした Font の Material・アトラスも記録します。
-- `build\individual` で、固有のバンドル名とアセットパスを使い、フォント1件ずつビルドします。個別マニフェストに外部依存がある場合は、依存先を記録して停止します。
-- 個別に開いてアンロードした後、全件を同時に開き直します。各段階で想定したアセット名と Dynamic 属性を照合します。成功した個別ビルドだけが `group-a` と `group-b` にコピーされます。
+各プロジェクトは出力先の中に残ります。作業用の Assets、Library、フォント、Bundle はGitに追加しないでください。従来の手動生成入口 `StoreFontBundleBuilder.Build` は比較用として利用できます。
 
 ## ゲーム内で検証する
 
@@ -92,3 +93,9 @@ Bold強制指定がプレビューとの条件差を生んでいたことはコ�
 実機では一括生成時にJP RegularとJP Boldが相互依存し、同じプロジェクトで1件ずつビルドした場合は依存が消え、両方とも約30 MBになりました。これは別ウェイトが暗黙の依存としてBundleに含まれたという仮説と整合します。マニフェストの外部依存が空であることは、そのBundle内に別ウェイトのデータがないという証拠にはなりません。
 
 検証するには、[単一フォントの生成手順](store-font-stage2.md)を使い、新規の試験プロジェクトを2つ作ります。一方の `Assets/Fonts` にJP Regularだけ、他方にJP Boldだけを配置します。両方とも `embedded` で生成し、個別ビルドのログ、出力サイズ、マニフェストを旧Bundleと比較します。当該フォントのインポート時の参照やビルドレポートの収録アセットを確認し、ゲームでは同名の旧Bundleと同時に配置せず、同一条件でウェイトの差を比較します。
+
+### 取得できた旧JP Regularの実体
+
+別ウェイトと混在していない初期のJP Regular（14,773,004 bytes、SHA256 `6069e139862ba348e653f3aabafb7b69401059c6c22f8a05462cc69b1933d2fc`）をUnityPyで調べました。シリアライズされていたのは `NotoSansCJKjp-Regular`、`Font Texture`、`Font Material` の各1件です。Fontの `m_FontData` は16,467,736 bytesで、元OTFのSHA256と一致しました。`m_FontNames` は `Noto Sans CJK JP`、`m_FallbackFonts` は空、付属マニフェストの外部依存は0件でした。
+
+約30 MBになったJP Regular／Boldの実体は取得できていません。旧方式の相互依存と容量差から、同じファミリー名を持つ別ウェイトが暗黙の依存として各Bundle内に取り込まれた可能性があります。外部依存0件はBundle間参照の結果です。新方式のEditor検証はロード可能なFont数を数えます。シリアライズされた全フォントデータのバイト単位の比較が必要な場合は、新旧Bundleを同じ方法で解析します。
