@@ -71,3 +71,24 @@ Windows PowerShell 5.1 と PowerShell 7 で同じコマンドを使います。�
 - ゲームでは同時4 Bundle、各32 MiB、1 Bundle あたり名前付きアセット32件までです。同じパスは大文字・小文字を区別せず管理します。Editor の生成検証にはゲーム側の同時4件制限を適用しません。
 - 候補は Unity の Instance ID で識別します。同名の候補は Bundle ファイル名でも見分けられます。選択中の候補と HUD に適用中の候補を分けて保持します。無効化からの復旧は元のパスとアセット名を使います。明示的な解放は標準 IMGUI に戻り、復旧待ちも解除します。
 - StoreLogic では異なる Bundle の同名候補、プレビューと適用の分離、HUD 切り替え、重複と5件目の拒否、解放、計測スナップショットをスタブで検証します。Unity Editor による生成、ゲーム内の複数ロード、文字表示、シーン移動後の寿命は Windows 検証手順の対象です。
+
+## プレビューとHUDの描画差を調べる
+
+元のHSRTimer（比較したソースは TwilightCup/HSRTimer の `9d245d668cc460064b1fa627e7780b46abde6766`）も、タイマー行と警告バナーに `FontStyle.Bold` を指定しています。Store版の診断プレビューは `Bold preview` で Normal と Bold を切り替えますが、従来のHUD適用ではFontとサイズだけを書き換え、行とバナーのBold指定を引き継いでいました。このため、Normalのプレビューを見た直後でもHUDはBoldで描画していました。今回は試験フォントの適用時にNormalを既定とし、比較用に従来のBoldを選べるようにしました。解除後の標準IMGUIは従来のBoldを使います。
+
+タイマー行はリッチテキストを無効にしており、フォント描画の影や縁取りはありません。プレビューは文字列をまとめて描き、HUDは同じGUIStyleで1文字ずつCalcSizeし、その幅を丸めずに加算してグラデーションを描きます。列の開始位置は全文字列のCalcSizeから求めます。計測と描画に同じFont、FontStyle、サイズを使っていても、字間調整やCalcSizeの計測単位の違いで、全文字列の幅と文字別の幅の合計に差が出る可能性があります。タイマー文字用に独自のGUI倍率は設定していません。軸ガイド描画の行列はその描画直後に復元します。Store版の主な差は標準のOSフォント生成をスキンフォントで代用する点と、試験フォントを行・バナーに一時適用できる点です。文字単位描画と列の幅計算は本家由来です。
+
+### 実機比較
+
+1. 既存のBundleを使い、グループAでJP RegularとJP Boldを同じ18pxで選びます。各候補のNormalとBoldのプレビューを撮影します。
+2. **HUD style on next apply** を **Normal (font's own weight)** に設定し、**I checked the candidate visually → Apply to Timer HUD for this session** を押します。各候補で **Record preview and HUD style comparison** を押します。同じ候補を **Legacy HUD (Bold)** でも適用します。プレビューのBold切り替えだけでも現在のHUDが変わらないことを確認します。
+3. グループBでRoboto RegularとRoboto Monoでも比較します。ログの `Preview Normal` / `Preview Bold` と `HUD before` / `HUD after` を見比べます。HUDの記録は次の描画で追加されます。表示名・Instance ID・スタイル・サイズ・richText・GUI変換の線形部を確認し、文字列のCalcSizeと個々の文字幅の合計を比較します。
+4. **Export diagnostic report** を使い、スクリーンショットと一緒に保存します。**Restore IMGUI / release probe fonts** 後は標準の見た目に戻ることを確認します。
+
+Bold強制指定がプレビューとの条件差を生んでいたことはコードから確認できました。一方、同じNoto JPファミリー内でUnityがどのウェイトの実グリフを選んだかはFontのInstance IDだけでは判定できません。旧BundleでもNormalとBoldを比べ、差が残る場合は下記の1ファイルだけをインポートしたBundleでも比較します。
+
+### JP系Bundleの容量増加
+
+実機では一括生成時にJP RegularとJP Boldが相互依存し、同じプロジェクトで1件ずつビルドした場合は依存が消え、両方とも約30 MBになりました。これは別ウェイトが暗黙の依存としてBundleに含まれたという仮説と整合します。マニフェストの外部依存が空であることは、そのBundle内に別ウェイトのデータがないという証拠にはなりません。
+
+検証するには、[単一フォントの生成手順](store-font-stage2.md)を使い、新規の試験プロジェクトを2つ作ります。一方の `Assets/Fonts` にJP Regularだけ、他方にJP Boldだけを配置します。両方とも `embedded` で生成し、個別ビルドのログ、出力サイズ、マニフェストを旧Bundleと比較します。当該フォントのインポート時の参照やビルドレポートの収録アセットを確認し、ゲームでは同名の旧Bundleと同時に配置せず、同一条件でウェイトの差を比較します。

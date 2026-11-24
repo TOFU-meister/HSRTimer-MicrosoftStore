@@ -577,15 +577,24 @@ namespace HSRTimer
                 if (_axisLabelStyle.font != _font) _axisLabelStyle.font = _font;
             }
 #if STORE_IL2CPP
+            if (StoreFontDiagnostics.CaptureHudStyle)
+                StoreFontDiagnostics.RecordHudStyles("HUD before", _rowStyle, _bannerStyle);
             Font probe = StoreFontDiagnostics.ActiveFont();
             if (_rowStyle.font != probe) _rowStyle.font = probe;
             if (_bannerStyle.font != probe) _bannerStyle.font = probe;
+            var weight = probe == null ? FontStyle.Bold : StoreFontDiagnostics.ActiveStyle;
+            if (_rowStyle.fontStyle != weight) _rowStyle.fontStyle = weight;
+            if (_bannerStyle.fontStyle != weight) _bannerStyle.fontStyle = weight;
             if (probe != null) size = StoreFontDiagnostics.ActiveSize;
 #endif
             if (_rowStyle.fontSize != size) _rowStyle.fontSize = size;
             // The invalid banner matches the timer rows' size (the fixed smaller
             // size made the warning look like a footnote next to the timer).
             if (_bannerStyle.fontSize != size) _bannerStyle.fontSize = size;
+#if STORE_IL2CPP
+            if (StoreFontDiagnostics.CaptureHudStyle)
+                StoreFontDiagnostics.RecordHudStyles("HUD after", _rowStyle, _bannerStyle);
+#endif
         }
     }
 }

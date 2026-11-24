@@ -14,7 +14,65 @@ namespace HSRTimer
     {
         private const string Sample = "0123456789\nABCDEFGHIJKLMNOPQRSTUVWXYZ\nabcdefghijklmnopqrstuvwxyz\n"
             + "00:00.000  01:23.456\n-00:01.234  +00:02.345\n"
-            + "日本語 あいうえお アイウエオ 記録 更新\n简体中文 繁體中文 计时 记录\n!?%+-:.,/()[]";
+            + "日本語 あいうえお アイウエオ 記録 更新\n简体中文 繁體中文 计时 记录\n!?%+-:.,/()[]\n"
+            + "IIII WWWW\nGame Time: 00:00.000\n11:11.111  88:88.888";
+        private static readonly string[] StyleSamples =
+        {
+            "0123456789", "IIII WWWW", "Game Time: 00:00.000", "11:11.111", "88:88.888",
+            "日本語 あいうえお アイウエオ 記録 更新", "简体中文 繁體中文 计时 记录",
+        };
+        private static readonly string[] HudModes = { "Normal (font's own weight)", "Legacy HUD (Bold)" };
+        private static int _hudMode;
+        private static bool _captureHudStyle;
+        private static FontStyle _appliedStyle;
+
+        internal static FontStyle ActiveStyle => _appliedStyle;
+        internal static bool CaptureHudStyle => _captureHudStyle;
+
+        internal static void RecordHudStyles(string phase, GUIStyle row, GUIStyle banner)
+        {
+            try
+            {
+                RecordStyle(phase + " row", row);
+                RecordStyle(phase + " banner", banner);
+            }
+            catch (Exception error) { Record("HUD style capture failed: " + Describe(error)); }
+            if (phase == "HUD after") _captureHudStyle = false;
+        }
+
+        private static void RecordStyle(string phase, GUIStyle style)
+        {
+            var font = style.font ?? GUI.skin.font;
+            var matrix = GUI.matrix;
+            Record($"{phase} | font={font?.name ?? "unknown"} #{font?.GetInstanceID()} | style={style.fontStyle} "
+                + $"| size={style.fontSize} | richText={style.richText} | matrix linear=[{matrix.m00},{matrix.m01};{matrix.m10},{matrix.m11}]");
+            foreach (string sample in StyleSamples)
+            {
+                var size = style.CalcSize(new GUIContent(sample));
+                float glyphWidth = 0;
+                foreach (char glyph in sample)
+                    glyphWidth += style.CalcSize(new GUIContent(glyph.ToString())).x;
+                Record($"{phase} | {sample} | CalcSize={size.x:0.##}x{size.y:0.##} | sum of individual widths={glyphWidth:0.##}");
+            }
+        }
+
+        private static void CompareStyles(Font font)
+        {
+            try
+            {
+                var style = new GUIStyle { font = font, fontSize = _size, richText = false, wordWrap = false };
+                try
+                {
+                    RecordStyle("Preview Normal", style);
+                    style.fontStyle = FontStyle.Bold;
+                    RecordStyle("Preview Bold", style);
+                }
+                finally { style.font = null; }
+            }
+            catch (Exception error) { Record("Preview style capture failed: " + Describe(error)); }
+            _captureHudStyle = true;
+        }
+
         private static readonly string[] Families =
         {
             "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans CJK",
@@ -157,7 +215,11 @@ namespace HSRTimer
             if (GUILayout.Button("Inspect glyph and atlas APIs", button)) Inspect(candidate.Font);
             if (_evidence != null) GUILayout.Label(_evidence, label);
 
-            float height = (_size + 6) * 8;
+            if (GUILayout.Button($"HUD style on next apply: {HudModes[_hudMode]}", button))
+                _hudMode = (_hudMode + 1) % HudModes.Length;
+            if (GUILayout.Button("Record preview and HUD style comparison", button)) CompareStyles(candidate.Font);
+
+            float height = (_size + 6) * 11;
             GUILayout.Label("IMGUI comparison", label);
             Preview(GUILayoutUtility.GetRect(1f, height, GUILayout.ExpandWidth(true)), null);
             GUILayout.Label("Candidate preview", label);
@@ -184,7 +246,9 @@ namespace HSRTimer
                 _pendingHud = null;
                 _applied = candidate;
                 _appliedSize = _size;
-                Record("HUD applied: " + Identify(candidate) + $" at {_size}px");
+                _appliedStyle = _hudMode == 0 ? FontStyle.Normal : FontStyle.Bold;
+                _captureHudStyle = true;
+                Record("HUD applied: " + Identify(candidate) + $" at {_size}px, style={_appliedStyle} ({HudModes[_hudMode]})");
                 _status = "Applied to the timer rows and warning banner. Check during play and after Retry.";
             }
         }

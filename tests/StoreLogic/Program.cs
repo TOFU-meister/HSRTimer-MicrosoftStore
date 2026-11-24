@@ -702,6 +702,18 @@ try
     FontClick("Apply to Timer HUD for this session");
     Equal(true, ReferenceEquals(secondFixture.Native.Font, StoreFontDiagnostics.ActiveFont()), "HUD switched to second bundle");
     Equal(secondFixture.Native.Font.GetInstanceID(), StoreFontDiagnostics.PerformanceSnapshot().FontId.Value, "performance snapshot follows active font");
+    Equal(UnityEngine.FontStyle.Normal, StoreFontDiagnostics.ActiveStyle, "applied font preserves its own weight by default");
+    FontClick("HUD style on next apply: Normal (font's own weight)");
+    Equal(UnityEngine.FontStyle.Normal, StoreFontDiagnostics.ActiveStyle, "changing comparison mode alone leaves HUD unchanged");
+    FontClick("Apply to Timer HUD for this session");
+    Equal(UnityEngine.FontStyle.Bold, StoreFontDiagnostics.ActiveStyle, "legacy HUD weight can be reapplied explicitly");
+    FontClick("HUD style on next apply: Legacy HUD (Bold)");
+    FontClick("Apply to Timer HUD for this session");
+    Equal(UnityEngine.FontStyle.Normal, StoreFontDiagnostics.ActiveStyle, "reapply returns to the font's own weight");
+    FontClick("Record preview and HUD style comparison");
+    Equal(true, StoreFontDiagnostics.CaptureHudStyle, "comparison asks HUD to report its styles");
+    StoreFontDiagnostics.RecordHudStyles("HUD after", new UnityEngine.GUIStyle(), new UnityEngine.GUIStyle());
+    Equal(false, StoreFontDiagnostics.CaptureHudStyle, "capture ends after one HUD update");
     Equal(4, StoreFontDiagnostics.PerformanceSnapshot().Bundles, "performance snapshot counts four bundles");
     FontClick("Restore IMGUI / release probe fonts");
     Equal(false, StoreFontDiagnostics.IsApplied, "explicit release restores IMGUI after switching");

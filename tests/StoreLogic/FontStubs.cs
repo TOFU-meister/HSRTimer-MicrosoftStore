@@ -70,7 +70,9 @@ namespace UnityEngine
 
     public sealed class Material : Object { public Texture mainTexture = new(); }
     public struct Rect {}
-    public struct Vector2 { public static Vector2 zero => default; }
+    public struct Vector2 { public float x, y; public static Vector2 zero => default; }
+    public struct Matrix4x4 { public float m00, m01, m10, m11; }
+    public sealed class GUIContent { public GUIContent(string text) {} }
     public enum LogType { Log, Warning }
     public static class Application
     {
@@ -94,10 +96,12 @@ namespace UnityEngine
         public int fontSize;
         public FontStyle fontStyle;
         public bool richText, wordWrap;
+        public Vector2 CalcSize(GUIContent content) => default;
     }
 
     public static class GUI
     {
+        public static Matrix4x4 matrix;
         public static readonly Skin skin = new();
         public static bool FailCandidateDraw;
         public static void Label(Rect rect, string text, GUIStyle style)
