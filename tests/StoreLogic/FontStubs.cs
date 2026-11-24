@@ -116,7 +116,23 @@ namespace Il2CppSystem { public class Type {} }
 namespace Il2CppInterop.Runtime
 {
     public static class Il2CppType { public static Il2CppSystem.Type Of<T>() => new(); }
-    public static class IL2CPP { public static IntPtr il2cpp_resolve_icall(string name) => IntPtr.Zero; }
+    public static class IL2CPP
+    {
+        public static bool HasFontClass = true;
+        public static IntPtr il2cpp_resolve_icall(string name) => IntPtr.Zero;
+        public static IntPtr GetIl2CppClass(string image, string ns, string name)
+            => HasFontClass ? new IntPtr(1) : IntPtr.Zero;
+        public static IntPtr il2cpp_class_get_methods(IntPtr type, ref IntPtr iterator)
+        {
+            if (iterator != IntPtr.Zero) return IntPtr.Zero;
+            return iterator = new IntPtr(1);
+        }
+        public static string il2cpp_method_get_name_(IntPtr method) => ".ctor";
+        public static uint il2cpp_method_get_param_count(IntPtr method) => 1;
+        public static IntPtr il2cpp_method_get_param(IntPtr method, uint index) => new(1);
+        public static string il2cpp_type_get_name_(IntPtr parameter) => "System.String";
+        public static uint il2cpp_method_get_token(IntPtr method) => 0x06000001;
+    }
 }
 namespace Il2CppInterop.Runtime.InteropTypes
 {

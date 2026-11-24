@@ -421,8 +421,22 @@ Equal(true, UnityEngine.GUILayout.Labels.Exists(x => x.Contains("2 retrieved, 1 
 FontClick("Segoe UI");
 Equal(true, UnityEngine.GUILayout.Labels.Exists(x => x.Contains("OS font 2/2: Segoe UI")), "direct OS selection");
 PanelTextInput.Query = "";
-FontClick("Inspect interop and internal-call availability");
+var originalOutput = Console.Out;
+var probeOutput = new StringWriter();
+try
+{
+    Console.SetOut(probeOutput);
+    FontClick("Inspect interop and internal-call availability");
+    Il2CppInterop.Runtime.IL2CPP.HasFontClass = false;
+    FontClick("Inspect interop and internal-call availability");
+}
+finally { Console.SetOut(originalOutput); }
 Equal(true, UnityEngine.GUILayout.Labels.Exists(x => x.Contains("registration results recorded")), "read-only API report");
+Equal(true, probeOutput.ToString().Contains("Game metadata: .ctor(System.String), token=0x06000001"),
+    "runtime declaration can coexist with a missing CLR constructor");
+Equal(true, probeOutput.ToString().Contains("no exact signature match for .ctor()"), "report unmatched native signature");
+Equal(true, probeOutput.ToString().Contains("query unavailable"), "unavailable metadata query is not a missing method");
+Equal(true, probeOutput.ToString().Contains("Internal_CreateDynamicFont: unresolved"), "registration is reported separately");
 FontClick("Probe Font(string) with selected name");
 FontClick(null);
 Equal(true, UnityEngine.GUILayout.Labels.Exists(x => x.Contains("public Font(string) constructor is unavailable")),

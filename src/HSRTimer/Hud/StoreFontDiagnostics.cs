@@ -284,10 +284,71 @@ namespace HSRTimer
                 if (count == 0) Record("Wrapper missing: " + name);
             }
 
+            foreach (var line in ReadGameMetadata())
+                Record(line);
+
             foreach (var name in new[] { "GetOSInstalledFontNames", "Internal_CreateFont", "Internal_CreateFontFromPath", "Internal_CreateDynamicFont" })
                 Record("Internal call " + name + ": " + Result(() => ResolveInternalCall(name)));
             Record(Result(StoreFontBundle.ApiStatus));
-            _status = "Interop and registration results recorded. Registration alone does not establish a callable constructor.";
+            _status = "Interop and registration results recorded, with game metadata when available. Definitions alone do not establish callable constructors.";
+        }
+
+        private static List<string> ReadGameMetadata()
+        {
+            try { return EnumerateGameMethods(); }
+            catch (Exception error)
+            {
+                return new List<string> { "Game metadata query unavailable: " + Describe(error) };
+            }
+        }
+
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private static List<string> EnumerateGameMethods()
+        {
+            var result = new List<string>();
+            var fontClass = IL2CPP.GetIl2CppClass("UnityEngine.TextRenderingModule.dll", "UnityEngine", "Font");
+            if (fontClass == IntPtr.Zero)
+            {
+                result.Add("Game metadata query unavailable: UnityEngine.Font class not found.");
+                return result;
+            }
+
+            var observed = new HashSet<string>(StringComparer.Ordinal);
+            IntPtr iterator = IntPtr.Zero;
+            IntPtr method;
+            while ((method = IL2CPP.il2cpp_class_get_methods(fontClass, ref iterator)) != IntPtr.Zero)
+            {
+                string name = IL2CPP.il2cpp_method_get_name_(method);
+                if (name != ".ctor" && name != "CreateDynamicFontFromOSFont" && name != "GetOSInstalledFontNames"
+                    && name != "Internal_CreateFont" && name != "Internal_CreateFontFromPath"
+                    && name != "Internal_CreateDynamicFont")
+                    continue;
+
+                var parameters = new string[checked((int)IL2CPP.il2cpp_method_get_param_count(method))];
+                for (int i = 0; i < parameters.Length; i++)
+                {
+                    var type = IL2CPP.il2cpp_method_get_param(method, (uint)i);
+                    parameters[i] = type == IntPtr.Zero ? "<unknown>" : IL2CPP.il2cpp_type_get_name_(type) ?? "<unknown>";
+                }
+
+                string signature = name + "(" + string.Join(", ", parameters) + ")";
+                observed.Add(signature);
+                result.Add($"Game metadata: {signature}, token=0x{IL2CPP.il2cpp_method_get_token(method):X8}");
+            }
+
+            foreach (var signature in new[]
+            {
+                ".ctor()", ".ctor(System.String)", ".ctor(System.String[], System.Int32)",
+                "CreateDynamicFontFromOSFont(System.String, System.Int32)",
+                "CreateDynamicFontFromOSFont(System.String[], System.Int32)",
+                "GetOSInstalledFontNames()", "Internal_CreateFont(UnityEngine.Font, System.String)",
+                "Internal_CreateFontFromPath(UnityEngine.Font, System.String)",
+                "Internal_CreateDynamicFont(UnityEngine.Font, System.String[], System.Int32)",
+            })
+                if (!observed.Contains(signature))
+                    result.Add("Game metadata: no exact signature match for " + signature);
+
+            return result;
         }
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
