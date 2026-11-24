@@ -427,6 +427,8 @@ try
 {
     Console.SetOut(probeOutput);
     FontClick("Inspect interop and internal-call availability");
+    Il2CppInterop.Runtime.IL2CPP.EmptyFont = true;
+    FontClick("Inspect interop and internal-call availability");
     Il2CppInterop.Runtime.IL2CPP.HasFontClass = false;
     FontClick("Inspect interop and internal-call availability");
 }
@@ -435,6 +437,7 @@ Equal(true, UnityEngine.GUILayout.Labels.Exists(x => x.Contains("registration re
 Equal(true, probeOutput.ToString().Contains("Game metadata: .ctor(System.String), token=0x06000001"),
     "runtime declaration can coexist with a missing CLR constructor");
 Equal(true, probeOutput.ToString().Contains("no exact signature match for .ctor()"), "report unmatched native signature");
+Equal(true, probeOutput.ToString().Contains("absence inconclusive"), "empty query cannot assert absence");
 Equal(true, probeOutput.ToString().Contains("query unavailable"), "unavailable metadata query is not a missing method");
 Equal(true, probeOutput.ToString().Contains("Internal_CreateDynamicFont: unresolved"), "registration is reported separately");
 FontClick("Probe Font(string) with selected name");

@@ -305,6 +305,7 @@ namespace HSRTimer
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
         private static List<string> EnumerateGameMethods()
         {
+            const int limit = 64;
             var result = new List<string>();
             var fontClass = IL2CPP.GetIl2CppClass("UnityEngine.TextRenderingModule.dll", "UnityEngine", "Font");
             if (fontClass == IntPtr.Zero)
@@ -313,27 +314,55 @@ namespace HSRTimer
                 return result;
             }
 
+            string ClassName(IntPtr klass) => klass == IntPtr.Zero ? "<unavailable>"
+                : IL2CPP.il2cpp_class_get_namespace_(klass) + "." + IL2CPP.il2cpp_class_get_name_(klass);
+            string TypeName(IntPtr type) => type == IntPtr.Zero ? "<unknown>" : IL2CPP.il2cpp_type_get_name_(type) ?? "<unknown>";
+
+            var image = IL2CPP.il2cpp_class_get_image(fontClass);
+            result.Add("Game metadata class: " + ClassName(fontClass)
+                + ", image=" + (image == IntPtr.Zero ? "<unavailable>" : IL2CPP.il2cpp_image_get_name_(image))
+                + ", parent=" + ClassName(IL2CPP.il2cpp_class_get_parent(fontClass))
+                + ", type=" + TypeName(IL2CPP.il2cpp_class_get_type(fontClass)));
+            var liveFont = GUI.skin.font;
+            var liveClass = liveFont == null ? IntPtr.Zero : IL2CPP.il2cpp_object_get_class(liveFont.Pointer);
+            result.Add("Live IMGUI font class: " + (liveClass == IntPtr.Zero ? "unavailable"
+                : ClassName(liveClass) + (liveClass == fontClass ? " (matches)" : " (differs)")));
+
             var observed = new HashSet<string>(StringComparer.Ordinal);
             IntPtr iterator = IntPtr.Zero;
+            int count = 0;
+            int constructors = 0;
             IntPtr method;
-            while ((method = IL2CPP.il2cpp_class_get_methods(fontClass, ref iterator)) != IntPtr.Zero)
+            while ((method = IL2CPP.il2cpp_class_get_methods(fontClass, ref iterator)) != IntPtr.Zero && count < limit)
             {
+                count++;
                 string name = IL2CPP.il2cpp_method_get_name_(method);
-                if (name != ".ctor" && name != "CreateDynamicFontFromOSFont" && name != "GetOSInstalledFontNames"
-                    && name != "Internal_CreateFont" && name != "Internal_CreateFontFromPath"
-                    && name != "Internal_CreateDynamicFont")
-                    continue;
-
+                if (name == ".ctor") constructors++;
                 var parameters = new string[checked((int)IL2CPP.il2cpp_method_get_param_count(method))];
                 for (int i = 0; i < parameters.Length; i++)
-                {
-                    var type = IL2CPP.il2cpp_method_get_param(method, (uint)i);
-                    parameters[i] = type == IntPtr.Zero ? "<unknown>" : IL2CPP.il2cpp_type_get_name_(type) ?? "<unknown>";
-                }
+                    parameters[i] = TypeName(IL2CPP.il2cpp_method_get_param(method, (uint)i));
 
                 string signature = name + "(" + string.Join(", ", parameters) + ")";
                 observed.Add(signature);
-                result.Add($"Game metadata: {signature}, token=0x{IL2CPP.il2cpp_method_get_token(method):X8}");
+                uint implementation = 0;
+                uint flags = IL2CPP.il2cpp_method_get_flags(method, ref implementation);
+                result.Add($"Game metadata: {signature}, token=0x{IL2CPP.il2cpp_method_get_token(method):X8},"
+                    + $" argc={parameters.Length}, returns={TypeName(IL2CPP.il2cpp_method_get_return_type(method))},"
+                    + $" {((flags & 0x10) != 0 ? "static" : "instance")}, impl=0x{implementation:X4}");
+            }
+
+            bool complete = method == IntPtr.Zero;
+            result.Add($"Game metadata enumeration: {count} methods, {constructors} instance constructors"
+                + (complete ? "; completed." : $"; truncated at {limit}."));
+            bool fontControl = observed.Contains("get_dynamic()") && observed.Contains("HasCharacter(System.Char)");
+            bool objectControl = HasGameMethod("UnityEngine.CoreModule.dll", "Object", "GetInstanceID");
+            result.Add($"Controls: Font.get_dynamic / HasCharacter={fontControl}, Object.GetInstanceID={objectControl},"
+                + $" Texture2D.get_whiteTexture={HasGameMethod("UnityEngine.CoreModule.dll", "Texture2D", "get_whiteTexture")},"
+                + $" AssetBundle.GetAllAssetNames={HasGameMethod("UnityEngine.AssetBundleModule.dll", "AssetBundle", "GetAllAssetNames")}.");
+            if (!complete || !fontControl || !objectControl || (liveClass != IntPtr.Zero && liveClass != fontClass))
+            {
+                result.Add("Game metadata absence inconclusive: incomplete enumeration or control mismatch.");
+                return result;
             }
 
             foreach (var signature in new[]
@@ -349,6 +378,18 @@ namespace HSRTimer
                     result.Add("Game metadata: no exact signature match for " + signature);
 
             return result;
+        }
+
+        private static bool HasGameMethod(string image, string type, string methodName)
+        {
+            var klass = IL2CPP.GetIl2CppClass(image, "UnityEngine", type);
+            if (klass == IntPtr.Zero) return false;
+            IntPtr iterator = IntPtr.Zero;
+            IntPtr method;
+            while ((method = IL2CPP.il2cpp_class_get_methods(klass, ref iterator)) != IntPtr.Zero)
+                if (IL2CPP.il2cpp_method_get_name_(method) == methodName && IL2CPP.il2cpp_method_get_param_count(method) == 0)
+                    return true;
+            return false;
         }
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]

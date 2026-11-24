@@ -121,22 +121,34 @@ namespace Il2CppInterop.Runtime
         public static bool HasFontClass = true;
         public static IntPtr il2cpp_resolve_icall(string name) => IntPtr.Zero;
         public static IntPtr GetIl2CppClass(string image, string ns, string name)
-            => HasFontClass ? new IntPtr(1) : IntPtr.Zero;
+            => name switch { "Font" => HasFontClass ? new IntPtr(1) : IntPtr.Zero, "Object" => new IntPtr(2), _ => IntPtr.Zero };
+        public static bool EmptyFont;
         public static IntPtr il2cpp_class_get_methods(IntPtr type, ref IntPtr iterator)
         {
-            if (iterator != IntPtr.Zero) return IntPtr.Zero;
-            return iterator = new IntPtr(1);
+            if (type == new IntPtr(2)) return iterator == IntPtr.Zero ? (iterator = new IntPtr(4)) : IntPtr.Zero;
+            if (EmptyFont || iterator.ToInt64() >= 3) return IntPtr.Zero;
+            return iterator = new IntPtr(iterator.ToInt64() + 1);
         }
-        public static string il2cpp_method_get_name_(IntPtr method) => ".ctor";
-        public static uint il2cpp_method_get_param_count(IntPtr method) => 1;
-        public static IntPtr il2cpp_method_get_param(IntPtr method, uint index) => new(1);
-        public static string il2cpp_type_get_name_(IntPtr parameter) => "System.String";
+        public static string il2cpp_method_get_name_(IntPtr method)
+            => method.ToInt32() switch { 1 => ".ctor", 2 => "get_dynamic", 3 => "HasCharacter", _ => "GetInstanceID" };
+        public static uint il2cpp_method_get_param_count(IntPtr method) => method.ToInt32() is 1 or 3 ? 1u : 0u;
+        public static IntPtr il2cpp_method_get_param(IntPtr method, uint index) => method;
+        public static string il2cpp_type_get_name_(IntPtr parameter) => parameter.ToInt32() == 3 ? "System.Char" : "System.String";
         public static uint il2cpp_method_get_token(IntPtr method) => 0x06000001;
+        public static string il2cpp_class_get_namespace_(IntPtr type) => "UnityEngine";
+        public static string il2cpp_class_get_name_(IntPtr type) => type.ToInt32() == 1 ? "Font" : "Object";
+        public static IntPtr il2cpp_class_get_image(IntPtr type) => new(1);
+        public static string il2cpp_image_get_name_(IntPtr image) => "UnityEngine.TextRenderingModule.dll";
+        public static IntPtr il2cpp_class_get_parent(IntPtr type) => new(2);
+        public static IntPtr il2cpp_class_get_type(IntPtr type) => type;
+        public static IntPtr il2cpp_object_get_class(IntPtr obj) => new(1);
+        public static IntPtr il2cpp_method_get_return_type(IntPtr method) => method;
+        public static uint il2cpp_method_get_flags(IntPtr method, ref uint impl) => 0;
     }
 }
 namespace Il2CppInterop.Runtime.InteropTypes
 {
-    public class Il2CppObjectBase { public T TryCast<T>() where T : class => this as T; }
+    public class Il2CppObjectBase { public IntPtr Pointer => new(1); public T TryCast<T>() where T : class => this as T; }
 }
 namespace HSRTimer
 {
