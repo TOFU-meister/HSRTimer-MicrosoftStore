@@ -650,6 +650,65 @@ try
     Equal(3, attempts, "explicit restore cancels pending recovery");
     StoreFontDiagnostics.DetachHudStyles = null;
 
+    var fixtures = new System.Collections.Generic.List<(TestFontBundle Native, StoreFontBundle Loaded, string Path)>();
+    for (int i = 0; i < 5; i++)
+    {
+        var native = TestFontBundle.Next = new();
+        native.Font.name = "Same embedded name";
+        string path = bundlePath + $"-{i}.bundle";
+        var fixture = LoadBundle();
+        fixtures.Add((native, fixture, path));
+        if (i == 4)
+        {
+            try
+            {
+                StoreFontDiagnostics.RegisterBundle(path, StoreFontBundle.Route.File, fixture, selectNew: true);
+                throw new Exception("Fifth font bundle was accepted.");
+            }
+            catch (InvalidOperationException) { }
+            Equal(1, native.Unloads, "rejected fifth bundle released");
+            break;
+        }
+        StoreFontDiagnostics.RegisterBundle(path, StoreFontBundle.Route.File, fixture, selectNew: true);
+    }
+
+    var first = fixtures[0];
+    var secondFixture = fixtures[1];
+    StoreFontDiagnostics.RegisterBundle(first.Path, StoreFontBundle.Route.File, first.Loaded, selectNew: true);
+    Equal(0, first.Native.Unloads, "same loaded instance registered idempotently");
+    var duplicate = TestFontBundle.Next = new();
+    try
+    {
+        StoreFontDiagnostics.RegisterBundle(first.Path, StoreFontBundle.Route.File, LoadBundle(), selectNew: true);
+        throw new Exception("Duplicate path was accepted.");
+    }
+    catch (InvalidOperationException) { }
+    Equal(1, duplicate.Unloads, "rejected duplicate instance released");
+
+    void SelectFixture(int i)
+    {
+        var fixture = fixtures[i];
+        FontClick($"Same embedded name #{fixture.Native.Font.GetInstanceID()} — AssetBundle / {System.IO.Path.GetFileName(fixture.Path)} / Dynamic");
+        FontClick(null);
+    }
+
+    SelectFixture(0);
+    FontClick("I checked the candidate visually");
+    FontClick("Apply to Timer HUD for this session");
+    Equal(true, ReferenceEquals(first.Native.Font, StoreFontDiagnostics.ActiveFont()), "selected first of same-named fonts");
+    SelectFixture(1);
+    Equal(true, ReferenceEquals(first.Native.Font, StoreFontDiagnostics.ActiveFont()), "preview selection leaves HUD unchanged");
+    FontClick("I checked the candidate visually");
+    FontClick("Apply to Timer HUD for this session");
+    Equal(true, ReferenceEquals(secondFixture.Native.Font, StoreFontDiagnostics.ActiveFont()), "HUD switched to second bundle");
+    Equal(secondFixture.Native.Font.GetInstanceID(), StoreFontDiagnostics.PerformanceSnapshot().FontId.Value, "performance snapshot follows active font");
+    Equal(4, StoreFontDiagnostics.PerformanceSnapshot().Bundles, "performance snapshot counts four bundles");
+    FontClick("Restore IMGUI / release probe fonts");
+    Equal(false, StoreFontDiagnostics.IsApplied, "explicit release restores IMGUI after switching");
+    Equal(0, StoreFontDiagnostics.PerformanceSnapshot().Bundles, "no bundles held after release");
+    foreach (var fixture in fixtures)
+        Equal(1, fixture.Native.Unloads, "each loaded fixture released once");
+
 }
 finally { System.IO.File.Delete(bundlePath); }
 

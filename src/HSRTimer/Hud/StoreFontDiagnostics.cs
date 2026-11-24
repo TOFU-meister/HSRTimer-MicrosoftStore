@@ -12,8 +12,9 @@ namespace HSRTimer
     // Accessed only from IMGUI on the Unity main thread. Nothing is persisted.
     internal static class StoreFontDiagnostics
     {
-        private const string Sample = "0123456789  00:12:34.567\n-00:01.234  +00:02.345\nPersonal Best / Human: Fall Flat\n"
-            + "ABCDEFGHIJKLMNOPQRSTUVWXYZ\nabcdefghijklmnopqrstuvwxyz\n日本語・ひらがな・カタカナ\n漢字・简体中文・繁體中文\n+-:.,%()[]";
+        private const string Sample = "0123456789\nABCDEFGHIJKLMNOPQRSTUVWXYZ\nabcdefghijklmnopqrstuvwxyz\n"
+            + "00:00.000  01:23.456\n-00:01.234  +00:02.345\n"
+            + "日本語 あいうえお アイウエオ 記録 更新\n简体中文 繁體中文 计时 记录\n!?%+-:.,/()[]";
         private static readonly string[] Families =
         {
             "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans CJK",
@@ -335,6 +336,14 @@ namespace HSRTimer
 
         internal static void RegisterBundle(string path, StoreFontBundle.Route route, StoreFontBundle bundle, bool selectNew, int recoveryAttempts = 0)
         {
+            bool hasSlot = Bundles.TryGetValue(path, out var slot);
+            if (ReferenceEquals(slot?.Bundle, bundle)) return;
+            if (slot?.Bundle != null || (!hasSlot && Bundles.Count >= StoreFontBundle.MaxBundles))
+            {
+                DisposeBundle(bundle);
+                throw new InvalidOperationException("The font bundle is already registered or all bundle slots are occupied.");
+            }
+
             int before = Candidates.Count;
             try
             {

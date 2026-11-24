@@ -8,7 +8,7 @@ public static class StoreFontBundleBuilder
 {
     private const string FontFolder = "Assets/Fonts";
     private const string SampleCharacters = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-        + "+-:.,%()[]/日本語・ひらがなカタ漢字简体中文繁體";
+        + "!?%+-:.,/()[]日本語あいうえおアイウエオ記録更新简体中文繁體计时记录";
 
     [MenuItem("Tools/HSRTimer/Build embedded font bundles")]
     public static void Build()
@@ -41,7 +41,9 @@ public static class StoreFontBundleBuilder
             });
         }
         var bundleNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (string path in Directory.GetFiles(Path.Combine(project, FontFolder)))
+        string[] paths = Directory.GetFiles(Path.Combine(project, FontFolder));
+        Array.Sort(paths, StringComparer.Ordinal);
+        foreach (string path in paths)
         {
             if (mode == "texture") break;
             string extension = Path.GetExtension(path).ToLowerInvariant();
@@ -73,38 +75,53 @@ public static class StoreFontBundleBuilder
         var manifest = BuildPipeline.BuildAssetBundles(output, builds.ToArray(),
             compression | BuildAssetBundleOptions.ForceRebuildAssetBundle, target);
         if (manifest == null) throw new InvalidOperationException("Unity did not build the AssetBundles.");
-        foreach (var build in builds)
-            Verify(Path.Combine(output, build.assetBundleName), mode);
-    }
-
-    private static void Verify(string path, string mode)
-    {
-        var bundle = AssetBundle.LoadFromFile(path, 0, 0);
-        if (bundle == null) throw new InvalidDataException("Editor rejected newly generated bundle: " + path);
+        var openBundles = new List<AssetBundle>();
+        var verifiedAssets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         try
         {
-            var names = bundle.GetAllAssetNames();
-            if (names.Length != 1) throw new InvalidDataException("Expected one main asset in " + path);
-            Debug.Log("Editor opened " + path + " | asset=" + names[0]);
-            if (mode == "texture")
+            foreach (var build in builds)
             {
-                var texture = bundle.LoadAsset<Texture2D>(names[0]);
-                if (texture == null) throw new InvalidDataException("Control Texture2D could not be read.");
-                Debug.Log($"Editor control: {texture.width} x {texture.height}");
-                return;
+                string path = Path.Combine(output, build.assetBundleName);
+                if (manifest.GetAllDependencies(build.assetBundleName).Length != 0)
+                    throw new InvalidDataException("External bundle dependencies are not supported: " + path);
+                if (new FileInfo(path).Length > 32L * 1024 * 1024)
+                    throw new InvalidDataException("Bundle exceeds the game's 32 MiB limit: " + path);
+                if (!verifiedAssets.Add(build.assetNames[0]))
+                    throw new InvalidDataException("Duplicate asset path: " + build.assetNames[0]);
+
+                var bundle = AssetBundle.LoadFromFile(path, 0, 0);
+                if (bundle == null) throw new InvalidDataException("Editor rejected newly generated bundle: " + path);
+                openBundles.Add(bundle);
+                Verify(bundle, path, build.assetNames[0], mode);
             }
-            var font = bundle.LoadAsset<Font>(names[0]);
-            if (font == null || font.dynamic != (mode != "static"))
-                throw new InvalidDataException("Font not readable or unexpected dynamic flag.");
-            if (font.dynamic) font.RequestCharactersInTexture("Aa0日本語", 18);
-            var atlas = font.material == null ? null : font.material.mainTexture;
-            Debug.Log($"Editor Font: {font.name}; dynamic={font.dynamic}; A={font.HasCharacter('A')}; "
-                + $"日={font.HasCharacter('日')}; atlas={(atlas == null ? "missing" : atlas.width + "x" + atlas.height)}");
+            Debug.Log($"Editor verified {openBundles.Count} bundles open together without dependencies.");
         }
         finally
         {
-            bundle.Unload(true);
+            foreach (var bundle in openBundles)
+                bundle.Unload(true);
         }
+    }
+
+    private static void Verify(AssetBundle bundle, string path, string expectedAsset, string mode)
+    {
+        var names = bundle.GetAllAssetNames();
+        if (names.Length != 1 || !string.Equals(names[0], expectedAsset, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("Unexpected asset name or count in " + path);
+        Debug.Log("Editor opened " + path + " | asset=" + names[0]);
+        if (mode == "texture")
+        {
+            var texture = bundle.LoadAsset<Texture2D>(names[0]);
+            if (texture == null) throw new InvalidDataException("Control Texture2D could not be read.");
+            Debug.Log($"Editor control: {texture.width} x {texture.height}");
+            return;
+        }
+        var font = bundle.LoadAsset<Font>(names[0]);
+        if (font == null || font.dynamic != (mode != "static"))
+            throw new InvalidDataException("Font not readable or unexpected dynamic flag.");
+        if (font.dynamic) font.RequestCharactersInTexture("Aa0日本語", 18);
+        var atlas = font.material == null ? null : font.material.mainTexture;
+        Debug.Log($"Editor Font: {font.name}; dynamic={font.dynamic}; A={font.HasCharacter('A')}; "
+            + $"日={font.HasCharacter('日')}; atlas={(atlas == null ? "missing" : atlas.width + "x" + atlas.height)}");
     }
 
     private static string Option(string name, string fallback)
