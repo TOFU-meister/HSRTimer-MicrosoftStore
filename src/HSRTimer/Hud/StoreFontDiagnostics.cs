@@ -19,10 +19,24 @@ namespace HSRTimer
             "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans CJK",
             "Heiti SC", "Arial Unicode MS", "Arial",
         };
-        private sealed record Candidate(Font Font, string Source, string Name, int Id, bool Owned, string Kind, string Style);
+        private sealed record Candidate(Font Font, string Source, string Name, int Id, bool Owned, string Kind, string Style, string BundlePath = null, string AssetName = null);
         private static readonly List<Candidate> Candidates = new();
         private static readonly List<string> OsNames = new();
-        private static readonly Dictionary<string, StoreFontBundle> Bundles = new(StringComparer.OrdinalIgnoreCase);
+        private sealed class BundleSlot
+        {
+            internal StoreFontBundle Bundle;
+            internal StoreFontBundle.Route Route;
+            internal long RetryAt;
+            internal long HealthySince = -1;
+            internal int Attempts;
+        }
+
+        private const int MaxRecoveryAttempts = 3;
+        private const long RecoveryDelayMs = 2000;
+        private static readonly Dictionary<string, BundleSlot> Bundles = new(StringComparer.OrdinalIgnoreCase);
+        private static long _nextHealthCheck;
+        private static (string Path, string Asset)? _pendingHud, _pendingPreview;
+        internal static Action DetachHudStyles { private get; set; }
         private static readonly Queue<string> History = new();
         private static string _search = "";
         private static string _bundleResult;
@@ -41,7 +55,7 @@ namespace HSRTimer
         {
             if (_applied == null) return null;
             if (_applied.Font != null) return _applied.Font;
-            ResetHud("The applied font was unloaded. HUD restored to IMGUI.");
+            SuspendHud("The applied font was unloaded. HUD restored to IMGUI.");
             return null;
         }
 
@@ -54,7 +68,12 @@ namespace HSRTimer
                 _confirmed = false;
                 _previewed = false;
             }
-            ResetHud("Timer HUD fell back. " + Describe(error));
+            string status = "Timer HUD fell back. " + Describe(error);
+            if (_applied?.BundlePath is { } path && Bundles.TryGetValue(path, out var slot)
+                && slot.Bundle != null && Health(slot.Bundle) != null)
+                SuspendHud(status);
+            else
+                ResetHud(status);
             if (Warnings.Add("Timer HUD")) Plugin.Logger.LogWarning("[Font Diagnostics] " + _status);
         }
 
@@ -92,6 +111,7 @@ namespace HSRTimer
                 for (int i = 0; i < Candidates.Count; i++)
                     if (GUILayout.Button((i == _selected ? "▶ " : "") + Identify(Candidates[i]), button))
                     {
+                        _pendingPreview = null;
                         Select(i);
                         Record("Selected " + Identify(Candidates[i]));
                     }
@@ -142,6 +162,7 @@ namespace HSRTimer
             }
             if (GUILayout.Button("Apply to Timer HUD for this session", button) && _confirmed && !_drawFailed)
             {
+                _pendingHud = null;
                 _applied = candidate;
                 _appliedSize = _size;
                 Record("HUD applied: " + Identify(candidate) + $" at {_size}px");
@@ -212,8 +233,17 @@ namespace HSRTimer
         {
             Record("Status at " + Result(() => Application.loadedLevelName) + ": IMGUI=" + NameOf(() => GUI.skin.font)
                 + "; OS font count=" + OsNames.Count + "; HUD=" + (_applied == null ? "IMGUI" : Identify(_applied)));
+            Record($"Bundle slots={Bundles.Count}; recovery pending={CountPendingBundles()}.");
             foreach (var candidate in Candidates)
-                Record(Identify(candidate) + (candidate.Font != null ? " / live" : " / unloaded"));
+            {
+                string state = candidate.Font != null ? "live" : "unloaded";
+                if (candidate.BundlePath != null && Bundles.TryGetValue(candidate.BundlePath, out var slot) && slot.Bundle != null)
+                {
+                    int index = slot.Bundle.Fonts.IndexOf(candidate.Font);
+                    if (index >= 0) state += "; " + Result(() => slot.Bundle.ResourceStatus(index));
+                }
+                Record(Identify(candidate) + " / " + state);
+            }
         }
 
         private static void ExportReport()
@@ -247,40 +277,170 @@ namespace HSRTimer
                 int added = 0, attempts = 0;
                 foreach (string path in Directory.EnumerateFiles(folder, "*.bundle"))
                 {
-                    if (Bundles.Count >= StoreFontBundle.MaxBundles || attempts >= StoreFontBundle.MaxBundles) break;
-                    if (Bundles.ContainsKey(path))
+                    if (attempts >= StoreFontBundle.MaxBundles) break;
+                    if (Bundles.TryGetValue(path, out var current) && current.Bundle != null)
                     {
-                        Note("Skipped " + Path.GetFileName(path) + ": already open. Restore IMGUI and release before retrying.");
-                        continue;
+                        string reason = Health(current.Bundle);
+                        if (reason == null)
+                        {
+                            Note("Skipped " + Path.GetFileName(path) + ": already open. Restore IMGUI and release before retrying.");
+                            continue;
+                        }
+                        Invalidate(path, current, reason, Environment.TickCount64);
                     }
+                    if (current == null && Bundles.Count >= StoreFontBundle.MaxBundles) continue;
+
                     attempts++;
                     try
                     {
                         StoreDataPolicy.EnsureSafePath(PersistenceService.PluginDir, path);
                         var bundle = LoadWithUnityMessages(path, route, Note);
-                        int before = Candidates.Count;
-                        try
-                        {
-                            foreach (var font in bundle.Fonts)
-                                Select(Add(font, Path.GetFileName(path), false, "AssetBundle"));
-                            Bundles.Add(path, bundle);
-                        }
-                        catch
-                        {
-                            Candidates.RemoveRange(before, Candidates.Count - before);
-                            Select(0);
-                            bundle.Dispose();
-                            throw;
-                        }
+                        RegisterBundle(path, route, bundle, selectNew: true);
                         added++;
                         Note($"Loaded {Path.GetFileName(path)} ({bundle.Fonts.Count} Font; {bundle.TextureCount} Texture2D).");
                     }
                     catch (Exception error) { Note("Load bundle " + Path.GetFileName(path) + ": " + StoreFontBundle.Describe(error)); }
                 }
-                Note($"Loaded {added} new bundle(s); {Bundles.Count}/{StoreFontBundle.MaxBundles} open. Folder: {folder}");
+                Note($"Loaded {added} new bundle(s); {Bundles.Count - CountPendingBundles()}/{StoreFontBundle.MaxBundles} open. Folder: {folder}");
             }
             catch (Exception error) { Note("Load local font bundles: " + StoreFontBundle.Describe(error)); }
             _bundleResult = string.Join("\n", details);
+        }
+
+        private static int CountPendingBundles()
+        {
+            int count = 0;
+            foreach (var slot in Bundles.Values)
+                if (slot.Bundle == null) count++;
+            return count;
+        }
+
+        internal static void RegisterBundle(string path, StoreFontBundle.Route route, StoreFontBundle bundle, bool selectNew, int recoveryAttempts = 0)
+        {
+            int before = Candidates.Count;
+            try
+            {
+                for (int i = 0; i < bundle.Fonts.Count; i++)
+                {
+                    int index = Add(bundle.Fonts[i], Path.GetFileName(path), false, "AssetBundle", path, bundle.FontNames[i]);
+                    if (selectNew || (_pendingPreview is { } preview && preview.Path == path && preview.Asset == bundle.FontNames[i]))
+                        Select(index);
+                }
+                Bundles[path] = new BundleSlot { Bundle = bundle, Route = route, Attempts = recoveryAttempts };
+                if (_pendingHud is { } pending && pending.Path == path)
+                {
+                    var recovered = Candidates.Find(candidate => candidate.BundlePath == path && candidate.AssetName == pending.Asset);
+                    _pendingHud = null;
+                    if (recovered?.Font != null)
+                    {
+                        _applied = recovered;
+                        _status = "Recovered external Font and re-applied it to the Timer HUD.";
+                        Record(_status + " " + Identify(recovered));
+                    }
+                    else
+                    {
+                        _status = "The previous HUD asset was absent after reloading. Using IMGUI.";
+                        Record(_status);
+                    }
+                }
+                if (_pendingPreview is { } selection && selection.Path == path) _pendingPreview = null;
+            }
+            catch
+            {
+                Candidates.RemoveRange(before, Candidates.Count - before);
+                Select(0);
+                DisposeBundle(bundle);
+                throw;
+            }
+        }
+
+        private static string Health(StoreFontBundle bundle)
+        {
+            try { return bundle.CheckHealth(); }
+            catch (Exception error) { return StoreFontBundle.Describe(error); }
+        }
+
+        private static void Invalidate(string path, BundleSlot slot, string reason, long now)
+        {
+            _status = $"Invalidated at {Result(() => Application.loadedLevelName)}: {Path.GetFileName(path)} ({reason}).";
+            Record(_status);
+            foreach (var candidate in Candidates)
+                if (candidate.BundlePath == path) Record("Withdrawn candidate: " + Identify(candidate), log: false);
+            Candidate selected = Candidates.Count > 0 ? Candidates[_selected] : null;
+            if (selected?.BundlePath == path) _pendingPreview = (path, selected.AssetName);
+            if (_applied?.BundlePath == path) SuspendHud("External font unavailable. Using IMGUI while recovering.");
+            Candidates.RemoveAll(candidate => candidate.BundlePath == path);
+            int remainingIndex = selected == null ? -1 : Candidates.IndexOf(selected);
+            if (remainingIndex < 0) Select(0);
+            else _selected = remainingIndex;
+            var bundle = slot.Bundle;
+            slot.Bundle = null;
+            slot.RetryAt = now + RecoveryDelayMs;
+            DisposeBundle(bundle);
+        }
+
+        private static void DisposeBundle(StoreFontBundle bundle)
+        {
+            try { bundle?.Dispose(); }
+            catch (Exception error) { Report("Unload font bundle", error); }
+        }
+
+        internal static void Tick()
+        {
+            MaintainBundles(Environment.TickCount64, (path, route) =>
+            {
+                StoreDataPolicy.EnsureSafePath(PersistenceService.PluginDir, path);
+                return LoadWithUnityMessages(path, route, message => Record(message, log: false));
+            });
+        }
+
+        internal static void MaintainBundles(long now, Func<string, StoreFontBundle.Route, StoreFontBundle> load)
+        {
+            if (Bundles.Count == 0 || now < _nextHealthCheck) return;
+            _nextHealthCheck = now + 500;
+            foreach (var entry in new List<KeyValuePair<string, BundleSlot>>(Bundles))
+            {
+                string path = entry.Key;
+                var slot = entry.Value;
+                if (slot.Bundle != null)
+                {
+                    string reason = Health(slot.Bundle);
+                    if (reason != null)
+                    {
+                        Invalidate(path, slot, reason, now);
+                        if (slot.Attempts >= MaxRecoveryAttempts) StopRecovery(path);
+                    }
+                    else if (slot.HealthySince < 0)
+                        slot.HealthySince = now;
+                    else if (now - slot.HealthySince >= 5000)
+                        slot.Attempts = 0;
+                    continue;
+                }
+                if (now < slot.RetryAt) continue;
+                slot.Attempts++;
+                Record($"Recovery {slot.Attempts}/{MaxRecoveryAttempts} at {Result(() => Application.loadedLevelName)}: {Path.GetFileName(path)}.");
+                try
+                {
+                    RegisterBundle(path, slot.Route, load(path, slot.Route), selectNew: false, recoveryAttempts: slot.Attempts);
+                    Record("Recovered " + Path.GetFileName(path) + ".");
+                }
+                catch (Exception error)
+                {
+                    Record("Recovery failed: " + StoreFontBundle.Describe(error), log: false);
+                    slot.RetryAt = now + RecoveryDelayMs;
+                    if (slot.Attempts < MaxRecoveryAttempts) continue;
+                    StopRecovery(path);
+                }
+            }
+        }
+
+        private static void StopRecovery(string path)
+        {
+            Bundles.Remove(path);
+            if (_pendingHud is { } hud && hud.Path == path) _pendingHud = null;
+            if (_pendingPreview is { } preview && preview.Path == path) _pendingPreview = null;
+            _status = "External Font recovery stopped after 3 attempts. Load the bundle manually to try again.";
+            Record(_status);
         }
 
         private static StoreFontBundle LoadWithUnityMessages(string path, StoreFontBundle.Route route, Action<string> note)
@@ -562,13 +722,13 @@ namespace HSRTimer
             }
         }
 
-        private static int Add(Font font, string source, bool owned, string kind)
+        private static int Add(Font font, string source, bool owned, string kind, string bundlePath = null, string assetName = null)
         {
             if (font == null) return 0;
             int id = font.GetInstanceID();
             int index = Candidates.FindIndex(x => x.Id == id && x.Font != null);
             if (index >= 0) return index;
-            Candidates.Add(new Candidate(font, source, font.name, id, owned, kind, Result(() => font.dynamic ? "Dynamic" : "Static")));
+            Candidates.Add(new Candidate(font, source, font.name, id, owned, kind, Result(() => font.dynamic ? "Dynamic" : "Static"), bundlePath, assetName));
             return Candidates.Count - 1;
         }
 
@@ -617,11 +777,23 @@ namespace HSRTimer
             return "not exposed by interop";
         }
 
+        private static void SuspendHud(string status)
+        {
+            var previous = _applied;
+            ResetHud(status);
+            if (previous?.BundlePath != null) _pendingHud = (previous.BundlePath, previous.AssetName);
+        }
+
         private static void ResetHud(string status)
         {
-            if (_applied != null) Record("Reset " + Identify(_applied) + ". " + status);
+            var previous = _applied;
             _applied = null;
+            _pendingHud = null;
             _status = status;
+            if (previous == null) return;
+            Record("Reset " + Identify(previous) + ". " + status);
+            try { DetachHudStyles?.Invoke(); }
+            catch (Exception error) { Report("Detach HUD font styles", error); }
         }
 
         internal static void Release()
@@ -629,11 +801,9 @@ namespace HSRTimer
             ResetHud("Standard IMGUI font restored.");
             foreach (var candidate in Candidates) DestroyOwned(candidate);
             Candidates.Clear();
-            foreach (var bundle in Bundles.Values)
-            {
-                try { bundle.Dispose(); }
-                catch (Exception error) { Report("Unload font bundle", error); }
-            }
+            _pendingPreview = null;
+            _nextHealthCheck = 0;
+            foreach (var slot in Bundles.Values) DisposeBundle(slot.Bundle);
             Bundles.Clear();
             Select(0);
         }

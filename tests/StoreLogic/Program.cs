@@ -568,6 +568,88 @@ try
     loaded.Dispose();
     Equal(1, sourceBundle.Unloads, "bundle ownership released once");
     Equal(true, sourceBundle.Font.Destroyed, "bundle-owned asset released");
+    StoreFontDiagnostics.Release();
+    var original = TestFontBundle.Next = new();
+    var initial = LoadBundle();
+    Equal(true, original.Font.hideFlags.HasFlag(UnityEngine.HideFlags.DontUnloadUnusedAsset), "only owned Font protected");
+    Equal(UnityEngine.HideFlags.None, original.Font.material.hideFlags, "material ownership not assumed");
+    Equal(UnityEngine.HideFlags.None, UnityEngine.GUI.skin.font.hideFlags, "borrowed skin untouched");
+    StoreFontDiagnostics.RegisterBundle(bundlePath, StoreFontBundle.Route.File, initial, selectNew: true);
+    FontClick(null);
+    FontClick("I checked the candidate visually");
+    FontClick("Apply to Timer HUD for this session");
+    Equal(true, ReferenceEquals(original.Font, StoreFontDiagnostics.ActiveFont()), "external Font applied");
+    int attempts = 0;
+    StoreFontBundle Recover(string path, StoreFontBundle.Route route)
+    {
+        Equal(bundlePath, path, "recovery uses original path");
+        Equal(StoreFontBundle.Route.File, route, "recovery uses original API");
+        attempts++;
+        TestFontBundle.Next = new();
+        return LoadBundle();
+    }
+
+    StoreFontDiagnostics.MaintainBundles(1000, Recover);
+    Equal(0, attempts, "healthy bundle skips reload");
+    original.Font.material.mainTexture.InvalidNativeObject = true;
+    original.Font.material.mainTexture = new UnityEngine.Texture(); // atlas rebuilt by Unity
+    StoreFontDiagnostics.MaintainBundles(1500, Recover);
+    Equal(0, attempts, "valid replacement atlas is accepted");
+    bool detached = false, detachedBeforeUnload = false;
+    StoreFontDiagnostics.DetachHudStyles = () => detached = true;
+    original.BeforeUnload = () => detachedBeforeUnload = detached && !StoreFontDiagnostics.IsApplied;
+    original.Font.Destroyed = true;
+    StoreFontDiagnostics.MaintainBundles(2000, Recover);
+    Equal(true, detachedBeforeUnload, "HUD style detachment precedes owned unload");
+    Equal(false, StoreFontDiagnostics.IsApplied, "invalidated Font falls back while waiting");
+    Equal(1, original.Unloads, "stale live bundle unloaded before recovery");
+    FontClick(null);
+    Equal(false, UnityEngine.GUILayout.Labels.Exists(x => x.Contains("Font unloaded")), "stale candidate removed");
+    StoreFontDiagnostics.MaintainBundles(3999, Recover);
+    Equal(0, attempts, "retry waits for cooldown");
+    StoreFontDiagnostics.MaintainBundles(4499, Recover);
+    var replacement = TestFontBundle.Next;
+    Equal(1, attempts, "Font reloaded once");
+    Equal(true, ReferenceEquals(replacement.Font, StoreFontDiagnostics.ActiveFont()), "same asset automatically reapplied");
+    replacement.InvalidNativeObject = true;
+    StoreFontDiagnostics.MaintainBundles(5000, Recover);
+    Equal(0, replacement.Unloads, "no unload call on invalid bundle");
+    StoreFontDiagnostics.MaintainBundles(7000, Recover);
+    var second = TestFontBundle.Next;
+    Equal(2, attempts, "bundle-only invalidation recovered");
+    second.Font.material.mainTexture.InvalidNativeObject = true;
+    StoreFontDiagnostics.MaintainBundles(7500, Recover);
+    StoreFontDiagnostics.MaintainBundles(9500, Recover);
+    Equal(3, attempts, "invalid atlas recovered");
+    TestFontBundle.Next.Font.material.InvalidNativeObject = true;
+    StoreFontDiagnostics.MaintainBundles(10000, Recover);
+    StoreFontDiagnostics.MaintainBundles(12000, Recover);
+    Equal(3, attempts, "unstable successive recoveries bounded");
+    Equal(false, StoreFontDiagnostics.IsApplied, "remains on IMGUI after exhaustion");
+
+    TestFontBundle.Next = new();
+    StoreFontDiagnostics.RegisterBundle(bundlePath, StoreFontBundle.Route.File, LoadBundle(), selectNew: true);
+    TestFontBundle.Next.Font.material.InvalidNativeObject = true;
+    StoreFontDiagnostics.MaintainBundles(12500, Recover);
+    int failures = 0;
+    StoreFontBundle FailRecovery(string path, StoreFontBundle.Route route)
+    {
+        failures++;
+        throw new System.IO.IOException("simulated missing file");
+    }
+    for (long time = 14500; time <= 20500; time += 2000)
+        StoreFontDiagnostics.MaintainBundles(time, FailRecovery);
+    Equal(3, failures, "consecutive failed loads are bounded");
+
+    TestFontBundle.Next = new();
+    StoreFontDiagnostics.RegisterBundle(bundlePath, StoreFontBundle.Route.File, LoadBundle(), selectNew: true);
+    TestFontBundle.Next.Font.Destroyed = true;
+    StoreFontDiagnostics.MaintainBundles(21000, Recover);
+    FontClick("Restore IMGUI / release probe fonts");
+    StoreFontDiagnostics.MaintainBundles(26000, Recover);
+    Equal(3, attempts, "explicit restore cancels pending recovery");
+    StoreFontDiagnostics.DetachHudStyles = null;
+
 }
 finally { System.IO.File.Delete(bundlePath); }
 

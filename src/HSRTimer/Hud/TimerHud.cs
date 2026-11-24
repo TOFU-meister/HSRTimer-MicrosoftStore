@@ -66,6 +66,9 @@ namespace HSRTimer
                 alignment = TextAnchor.MiddleCenter,
                 normal = { textColor = Color.white },
             };
+#if STORE_IL2CPP
+            StoreFontDiagnostics.DetachHudStyles = ClearStoreFontStyles;
+#endif
         }
 
         /// <summary>(Re)create the dynamic OS font when the configured size changes.</summary>
@@ -104,7 +107,19 @@ namespace HSRTimer
         }
 
 #if STORE_IL2CPP
-        private void OnDestroy() => StoreFontDiagnostics.Release();
+        private void Update() => StoreFontDiagnostics.Tick();
+
+        private void ClearStoreFontStyles()
+        {
+            _rowStyle.font = null;
+            _bannerStyle.font = null;
+        }
+
+        private void OnDestroy()
+        {
+            StoreFontDiagnostics.Release();
+            StoreFontDiagnostics.DetachHudStyles = null;
+        }
 #endif
 
 #if STORE_IL2CPP

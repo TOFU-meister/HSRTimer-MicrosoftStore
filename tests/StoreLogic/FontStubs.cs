@@ -24,10 +24,12 @@ namespace Il2CppInterop.Runtime.InteropTypes.Arrays
 
 namespace UnityEngine
 {
+    public enum HideFlags { None, DontUnloadUnusedAsset }
     public class Object : Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase
     {
         public static void Destroy(Font font) => font.Destroyed = true;
         public bool InvalidNativeObject;
+        public HideFlags hideFlags;
         public static bool operator ==(Object a, Object b)
             => ((a is null || a.InvalidNativeObject) && (b is null || b.InvalidNativeObject)) || ReferenceEquals(a, b);
         public static bool operator !=(Object a, Object b) => !(a == b);
@@ -35,7 +37,8 @@ namespace UnityEngine
         public override int GetHashCode() => base.GetHashCode();
     }
 
-    public class Texture2D : Object { public string name = "Texture control"; }
+    public class Texture : Object {}
+    public class Texture2D : Texture { public string name = "Texture control"; }
 
     public sealed class Font : Object
     {
@@ -46,7 +49,7 @@ namespace UnityEngine
         public bool Destroyed;
         public bool dynamic => true;
         public string name { get; set; } = "Probe";
-        public Material material { get; } = new();
+        public Material material { get; set; } = new();
         public Font() {}
         private Font(Il2CppStringArray names, int size) => name = names[0];
         public static Font CreateDynamicFontFromOSFont(Il2CppStringArray names, int size)
@@ -65,7 +68,7 @@ namespace UnityEngine
         public override int GetHashCode() => _id;
     }
 
-    public sealed class Material { public object mainTexture = new(); }
+    public sealed class Material : Object { public Texture mainTexture = new(); }
     public struct Rect {}
     public struct Vector2 { public static Vector2 zero => default; }
     public enum LogType { Log, Warning }
@@ -212,5 +215,6 @@ public sealed class TestFontBundle : UnityEngine.Object
     public string[] GetAllAssetNames() => FailEnumeration ? throw new InvalidOperationException("enumeration test error") : Names;
     public UnityEngine.Object LoadAsset(string name, Il2CppSystem.Type type)
         => type.ClrType == typeof(UnityEngine.Texture2D) ? Texture : Font;
-    public void Unload(bool destroyAssets) { Unloads++; if (destroyAssets && Font != null) UnityEngine.Object.Destroy(Font); }
+    public Action BeforeUnload;
+    public void Unload(bool destroyAssets) { BeforeUnload?.Invoke(); Unloads++; if (destroyAssets && Font != null) UnityEngine.Object.Destroy(Font); }
 }

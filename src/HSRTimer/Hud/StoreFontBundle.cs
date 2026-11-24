@@ -22,6 +22,52 @@ namespace HSRTimer
         internal enum Route { File, FileExplicit, Memory, MemoryExplicit }
         internal int TextureCount { get; private set; }
         internal List<Font> Fonts { get; } = new();
+        internal IReadOnlyList<string> FontNames => _fontNames;
+        private readonly List<string> _fontNames = new();
+        private readonly List<FontResources> _resources = new();
+
+        private sealed class FontResources
+        {
+            private readonly Font _font;
+            private Material _material;
+            private Texture _atlas;
+            private bool _hadMaterial, _hadAtlas;
+
+            internal FontResources(Font font) => _font = font;
+
+            internal string Check()
+            {
+                if (_font == null) return "Font invalid";
+                _material = _font.material;
+                if (_material == null && _hadMaterial) return "Material invalid";
+                _hadMaterial |= _material != null;
+                _atlas = _material == null ? null : _material.mainTexture;
+                if (_atlas == null && _hadAtlas) return "atlas Texture invalid";
+                _hadAtlas |= _atlas != null;
+                return null;
+            }
+
+            internal string Status => $"Font={(_font != null ? "live, flags=" + _font.hideFlags : "invalid")}, "
+                + $"Material={ResourceStatus(_material, _hadMaterial)}, Texture={ResourceStatus(_atlas, _hadAtlas)}";
+
+            private static string ResourceStatus(UnityEngine.Object value, bool seen)
+                => value != null ? "live, flags=" + value.hideFlags : seen ? "invalid" : "not allocated";
+        }
+
+        private bool IsAlive => _bundle != null && (_bundle is not UnityEngine.Object unity || unity != null);
+
+        internal string CheckHealth()
+        {
+            if (!IsAlive) return "Bundle invalid";
+            foreach (var resource in _resources)
+            {
+                var reason = resource.Check();
+                if (reason != null) return reason;
+            }
+            return null;
+        }
+
+        internal string ResourceStatus(int index) => $"Bundle={(IsAlive ? "live" : "invalid")}, " + _resources[index].Status;
 
         private StoreFontBundle(object bundle, MethodInfo unload)
         {
@@ -142,7 +188,13 @@ namespace HSRTimer
                     if (font != null)
                     {
                         loaded.Fonts.Add(font);
-                        report("Asset result: valid Font " + font.name);
+                        loaded._fontNames.Add(name);
+                        var resources = new FontResources(font);
+                        loaded._resources.Add(resources);
+                        try { font.hideFlags |= HideFlags.DontUnloadUnusedAsset; }
+                        catch (Exception error) { report("Owned Font protection unavailable: " + Describe(error)); }
+                        resources.Check();
+                        report("Asset result: valid Font " + font.name + " #" + font.GetInstanceID() + "; " + resources.Status);
                         continue;
                     }
                     report(value is null ? "Asset result: Font lookup returned CLR null."
@@ -200,10 +252,13 @@ namespace HSRTimer
         public void Dispose()
         {
             if (_bundle == null) return;
+            bool alive = IsAlive;
             var bundle = _bundle;
             _bundle = null;
             Fonts.Clear();
-            _unload.Invoke(bundle, new object[] { true });
+            _fontNames.Clear();
+            _resources.Clear();
+            if (alive) _unload.Invoke(bundle, new object[] { true });
         }
     }
 }
