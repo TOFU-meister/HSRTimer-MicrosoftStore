@@ -415,9 +415,33 @@ UnityEngine.Font.FailOsList = false;
 FontClick("List Unity OS fonts");
 Equal(true, UnityEngine.GUILayout.Labels.Exists(x => x.Contains("OS font 1/2: Arial")),
     "successfully enumerated OS names appear sorted");
+PanelTextInput.Query = "sEgO";
+FontClick(null);
+Equal(true, UnityEngine.GUILayout.Labels.Exists(x => x.Contains("2 retrieved, 1 shown")), "case-insensitive partial search");
+FontClick("Segoe UI");
+Equal(true, UnityEngine.GUILayout.Labels.Exists(x => x.Contains("OS font 2/2: Segoe UI")), "direct OS selection");
+PanelTextInput.Query = "";
+FontClick("Inspect interop and internal-call availability");
+Equal(true, UnityEngine.GUILayout.Labels.Exists(x => x.Contains("registration results recorded")), "read-only API report");
+FontClick("Probe Font(string) with selected name");
+FontClick(null);
+Equal(true, UnityEngine.GUILayout.Labels.Exists(x => x.Contains("public Font(string) constructor is unavailable")),
+    "independent string constructor fails safely when missing");
 FontClick("Probe selected OS font");
+FontClick(null);
 Equal(true, UnityEngine.GUILayout.Labels.Exists(x => x.Contains("MissingMethodException")),
     "optional single-family overload safely missing");
+var firstDuplicateName = new UnityEngine.Font { name = "Same name" };
+var secondDuplicateName = new UnityEngine.Font { name = "Same name" };
+UnityEngine.Resources.LoadedFonts = new[] { UnityEngine.GUI.skin.font, firstDuplicateName,
+    secondDuplicateName, firstDuplicateName, new UnityEngine.Font(), new UnityEngine.Font() };
+FontClick("Scan game fonts");
+Equal(true, UnityEngine.GUILayout.Labels.Exists(x => x.Contains("5 unique live candidates")),
+    "same native object deduplicated and same names retained");
+FontClick($"Same name #{secondDuplicateName.GetInstanceID()} — Game Asset / Loaded Unity asset / Dynamic");
+FontClick("I checked the candidate visually");
+FontClick("Apply to Timer HUD for this session");
+Equal(true, ReferenceEquals(secondDuplicateName, StoreFontDiagnostics.ActiveFont()), "candidate selected by instance ID");
 FontClick("Scan game fonts");
 FontClick("Inspect glyph and atlas APIs");
 Equal(true, UnityEngine.GUILayout.Labels.Exists(x => x.Contains("not exposed by interop")),
@@ -455,5 +479,46 @@ FontClick("Probe upstream fallback order");
 var newOwnedFont = UnityEngine.Font.LastCreated;
 StoreFontDiagnostics.Release();
 Equal(true, newOwnedFont.Destroyed, "release destroys the live owned font");
+
+string bundlePath = System.IO.Path.GetTempFileName();
+try
+{
+    void ExpectBundleFailure(Action action, string description)
+    {
+        try { action(); }
+        catch (System.IO.InvalidDataException) { return; }
+        throw new Exception(description);
+    }
+
+    StoreFontBundle LoadBundle(Type api = null)
+        => StoreFontBundle.Load(bundlePath, api ?? typeof(TestFontBundle), () => new Il2CppSystem.Type());
+
+    System.IO.File.WriteAllText(bundlePath, "not a UnityFS file");
+    ExpectBundleFailure(() => LoadBundle(), "bad header must be rejected");
+    Equal(0, TestFontBundle.Opened, "invalid files never reach Unity");
+    using (var oversized = System.IO.File.OpenWrite(bundlePath))
+        oversized.SetLength(StoreFontBundle.MaxFileBytes + 1);
+    ExpectBundleFailure(() => LoadBundle(), "size limit checked before opening");
+    Equal(0, TestFontBundle.Opened, "oversized files never reach Unity");
+    System.IO.File.WriteAllText(bundlePath, "UnityFS\0");
+    try { LoadBundle(typeof(object)); throw new Exception("Missing wrapper should fail."); }
+    catch (MissingMethodException) {}
+    Equal(0, TestFontBundle.Opened, "partial API never opens a bundle");
+    ExpectBundleFailure(() => LoadBundle(), "Unity rejecting a valid header is handled");
+    var noFonts = TestFontBundle.Next = new() { Font = null };
+    ExpectBundleFailure(() => LoadBundle(), "bundle without a font rejected");
+    Equal(1, noFonts.Unloads, "empty bundle unloaded");
+    var tooMany = TestFontBundle.Next = new() { Names = new string[33] };
+    ExpectBundleFailure(() => LoadBundle(), "asset count limit");
+    Equal(1, tooMany.Unloads, "oversized bundle unloaded");
+    var sourceBundle = TestFontBundle.Next = new();
+    var loaded = LoadBundle();
+    Equal(true, ReferenceEquals(loaded.Fonts[0], sourceBundle.Font), "bundle font acquired");
+    loaded.Dispose();
+    loaded.Dispose();
+    Equal(1, sourceBundle.Unloads, "bundle ownership released once");
+    Equal(true, sourceBundle.Font.Destroyed, "bundle-owned asset released");
+}
+finally { System.IO.File.Delete(bundlePath); }
 
 Console.WriteLine("Store logic checks passed.");

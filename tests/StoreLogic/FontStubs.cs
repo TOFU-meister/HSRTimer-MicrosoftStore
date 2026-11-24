@@ -18,12 +18,12 @@ namespace Il2CppInterop.Runtime.InteropTypes.Arrays
 
 namespace UnityEngine
 {
-    public static class Object
+    public class Object : Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase
     {
         public static void Destroy(Font font) => font.Destroyed = true;
     }
 
-    public sealed class Font
+    public sealed class Font : Object
     {
         private static int _next;
         private readonly int _id = ++_next;
@@ -53,6 +53,8 @@ namespace UnityEngine
 
     public sealed class Material { public object mainTexture = new(); }
     public struct Rect {}
+    public struct Vector2 { public static Vector2 zero => default; }
+    public static class Application { public static string loadedLevelName => "Test"; }
     public enum FontStyle { Normal, Bold }
     public enum EventType { Repaint }
     public sealed class Event { public static Event current = new(); public EventType type; }
@@ -92,6 +94,9 @@ namespace UnityEngine
         public static bool Toggle(bool enabled, string label) => enabled;
         public static void Label(string label, GUIStyle style) => Labels.Add(label);
         public static object ExpandWidth(bool expand) => null;
+        public static object Height(float value) => null;
+        public static Vector2 BeginScrollView(Vector2 position, object option) => position;
+        public static void EndScrollView() {}
     }
 
     public static class GUILayoutUtility
@@ -101,7 +106,40 @@ namespace UnityEngine
 
     public static partial class Resources
     {
+        public static Font[] LoadedFonts = Array.Empty<Font>();
         public static T GetBuiltinResource<T>(string path) where T : class => null;
-        public static Il2CppArrayBase<T> FindObjectsOfTypeAll<T>() => new(Array.Empty<T>());
+        public static Il2CppArrayBase<T> FindObjectsOfTypeAll<T>() => new((T[])(object)LoadedFonts);
     }
+}
+
+namespace Il2CppSystem { public class Type {} }
+namespace Il2CppInterop.Runtime
+{
+    public static class Il2CppType { public static Il2CppSystem.Type Of<T>() => new(); }
+    public static class IL2CPP { public static IntPtr il2cpp_resolve_icall(string name) => IntPtr.Zero; }
+}
+namespace Il2CppInterop.Runtime.InteropTypes
+{
+    public class Il2CppObjectBase { public T TryCast<T>() where T : class => this as T; }
+}
+namespace HSRTimer
+{
+    internal static class PanelTextInput
+    {
+        internal static string Query = "";
+        internal static void Cancel() {}
+        internal static string Draw(string key, string value, UnityEngine.GUIStyle style) => Query;
+    }
+}
+public sealed class TestFontBundle
+{
+    public static TestFontBundle Next;
+    public static int Opened;
+    public string[] Names = { "assets/fonts/test.ttf" };
+    public UnityEngine.Font Font = new();
+    public int Unloads;
+    public static TestFontBundle LoadFromFile(string path) { Opened++; return Next; }
+    public string[] GetAllAssetNames() => Names;
+    public UnityEngine.Object LoadAsset(string name, Il2CppSystem.Type type) => Font;
+    public void Unload(bool destroyAssets) { Unloads++; if (destroyAssets && Font != null) UnityEngine.Object.Destroy(Font); }
 }

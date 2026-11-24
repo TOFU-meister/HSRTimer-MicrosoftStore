@@ -2,6 +2,8 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.IO;
+using Il2CppInterop.Runtime;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using UnityEngine;
 
@@ -17,9 +19,13 @@ namespace HSRTimer
             "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans CJK",
             "Heiti SC", "Arial Unicode MS", "Arial",
         };
-        private sealed record Candidate(Font Font, string Source, string Name, int Id, bool Owned);
+        private sealed record Candidate(Font Font, string Source, string Name, int Id, bool Owned, string Kind, string Style);
         private static readonly List<Candidate> Candidates = new();
         private static readonly List<string> OsNames = new();
+        private static readonly Dictionary<string, StoreFontBundle> Bundles = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly Queue<string> History = new();
+        private static string _search = "";
+        private static Vector2 _osScroll, _candidateScroll;
         private static readonly HashSet<string> Warnings = new();
         private static int _selected, _osSelected;
         private static int _size = 18;
@@ -54,7 +60,10 @@ namespace HSRTimer
         internal static void Draw(GUIStyle button, GUIStyle label)
         {
             if (GUILayout.Button(_open ? "Hide Font Diagnostics" : "Font Diagnostics", button))
+            {
                 _open = !_open;
+                if (!_open) PanelTextInput.Cancel();
+            }
             if (!_open) return;
 
             GUILayout.Label("Session only. The settings panel keeps its own font.", label);
@@ -63,28 +72,27 @@ namespace HSRTimer
                 + " | Timer HUD: " + (_applied == null ? "IMGUI skin" : _applied.Name), label);
 
             if (GUILayout.Button("Scan game fonts", button)) Scan();
-            if (GUILayout.Button("List Unity OS fonts", button)) ListOsFonts();
-            IReadOnlyList<string> names = OsNames.Count > 0 ? OsNames : Families;
-            GUILayout.Label($"OS font {_osSelected + 1}/{names.Count}: {names[_osSelected]}"
-                + (OsNames.Count == 0 ? " (upstream choice)" : ""), label);
-            if (GUILayout.Button("Previous OS font", button)) _osSelected = (_osSelected + names.Count - 1) % names.Count;
-            if (GUILayout.Button("Next OS font", button)) _osSelected = (_osSelected + 1) % names.Count;
-            if (GUILayout.Button("Probe selected OS font", button))
-                Acquire("Unity single family", () => CreateSingle(names[_osSelected], _size), true);
-            if (GUILayout.Button("Probe upstream fallback order", button))
-                Acquire("Unity upstream font chain", () => CreateChain(_size), true);
-            if (GUILayout.Button("Restore IMGUI / release probe fonts", button))
-            {
-                Release();
-                _status = "Standard IMGUI font restored.";
-            }
-
+            if (GUILayout.Button("Inspect interop and internal-call availability", button)) ProbeInterop();
+            if (GUILayout.Button("Load local font bundles", button)) LoadBundles();
+            if (GUILayout.Button("Record current status", button)) RecordStatus();
+            if (GUILayout.Button("Export diagnostic report", button)) ExportReport();
+            if (GUILayout.Button("Restore IMGUI / release probe fonts", button)) Release();
+            DrawOsFonts(button, label);
             GUILayout.Label(_status, label);
+
             if (Candidates.Count == 0) return;
-            if (GUILayout.Button("Previous candidate", button)) Select((_selected + Candidates.Count - 1) % Candidates.Count);
-            if (GUILayout.Button("Next candidate", button)) Select((_selected + 1) % Candidates.Count);
+            _candidateScroll = GUILayout.BeginScrollView(_candidateScroll, GUILayout.Height(112f));
+            try
+            {
+                for (int i = 0; i < Candidates.Count; i++)
+                    if (GUILayout.Button((i == _selected ? "▶ " : "") + Identify(Candidates[i]), button))
+                    {
+                        Select(i);
+                        Record("Selected " + Identify(Candidates[i]));
+                    }
+            }
+            finally { GUILayout.EndScrollView(); }
             var candidate = Candidates[_selected];
-            GUILayout.Label($"Candidate {_selected + 1}/{Candidates.Count}: {candidate.Name} #{candidate.Id} ({candidate.Source})", label);
             if (candidate.Font == null)
             {
                 GUILayout.Label("Font unloaded. Scan again to find live objects.", label);
@@ -109,19 +117,182 @@ namespace HSRTimer
             GUILayout.Label("IMGUI comparison", label);
             Preview(GUILayoutUtility.GetRect(1f, height, GUILayout.ExpandWidth(true)), null);
             GUILayout.Label("Candidate preview", label);
-            if (Preview(GUILayoutUtility.GetRect(1f, height, GUILayout.ExpandWidth(true)), candidate.Font)) _previewed = true;
+            if (Preview(GUILayoutUtility.GetRect(1f, height, GUILayout.ExpandWidth(true)), candidate.Font) && !_previewed)
+            {
+                _previewed = true;
+                Record("Preview draw returned: " + Identify(candidate) + $", {_size}px, bold={_bold}; awaiting visual check.");
+            }
             GUILayout.Label(_drawFailed ? "Draw call failed." : _confirmed ? "Visually checked by user."
                 : _previewed ? "Draw call returned. Check for blank or missing glyphs." : "Waiting for repaint.", label);
             // Keep the control tree stable across IMGUI Layout and Repaint.
             if (GUILayout.Button("I checked the candidate visually", button) && _previewed && !_drawFailed)
+            {
                 _confirmed = true;
+                Record("Visual check passed: " + Identify(candidate));
+            }
+            if (GUILayout.Button("The preview has missing or incorrect glyphs", button) && _previewed)
+            {
+                _confirmed = false;
+                Record("Visual check failed: " + Identify(candidate));
+            }
             if (GUILayout.Button("Apply to Timer HUD for this session", button) && _confirmed && !_drawFailed)
             {
                 _applied = candidate;
                 _appliedSize = _size;
+                Record("HUD applied: " + Identify(candidate) + $" at {_size}px");
                 _status = "Applied to the timer rows and warning banner. Check during play and after Retry.";
             }
         }
+
+        private static void DrawOsFonts(GUIStyle button, GUIStyle label)
+        {
+            if (GUILayout.Button("List Unity OS fonts", button)) ListOsFonts();
+            IReadOnlyList<string> names = OsNames.Count > 0 ? OsNames : Families;
+            GUILayout.Label("Find OS font (Enter to apply the filter)", label);
+            string query = PanelTextInput.Draw("store-font-search", _search, button);
+            if (query != _search)
+            {
+                _search = query.Trim();
+                _osScroll = Vector2.zero;
+            }
+            GUILayout.Label($"OS fonts: {OsNames.Count} retrieved, {CountMatches(names, _search)} shown"
+                + (OsNames.Count == 0 ? " (upstream choices)" : ""), label);
+            _osScroll = GUILayout.BeginScrollView(_osScroll, GUILayout.Height(135f));
+            try
+            {
+                for (int i = 0; i < names.Count; i++)
+                {
+                    if (!Matches(names[i], _search)) continue;
+                    if (GUILayout.Button((i == _osSelected ? "▶ " : "") + names[i], button))
+                    {
+                        _osSelected = i;
+                        Record("Selected OS font: " + names[i]);
+                    }
+                }
+            }
+            finally { GUILayout.EndScrollView(); }
+
+            string selectedName = names[_osSelected];
+            GUILayout.Label($"OS font {_osSelected + 1}/{names.Count}: {selectedName}", label);
+            if (GUILayout.Button("Probe selected OS font", button))
+                Acquire("Unity single family", () => CreateSingle(selectedName, _size), true, "OS Font", selectedName);
+            if (GUILayout.Button("Probe upstream fallback order", button))
+                Acquire("Unity upstream font chain", () => CreateChain(_size), true, "OS Font");
+            if (GUILayout.Button("Probe Font(string) with selected name", button))
+                Acquire("Font(string)", () => CreateByName(selectedName), true, "OS Font", selectedName);
+        }
+
+        private static bool Matches(string name, string query)
+            => name.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0;
+
+        private static int CountMatches(IReadOnlyList<string> names, string query)
+        {
+            int count = 0;
+            foreach (var name in names)
+                if (Matches(name, query)) count++;
+            return count;
+        }
+
+        private static string Identify(Candidate candidate)
+            => $"{candidate.Name} #{candidate.Id} — {candidate.Kind} / {candidate.Source} / {candidate.Style}";
+
+        private static void Record(string message, bool log = true)
+        {
+            if (History.Count >= 256) History.Dequeue();
+            History.Enqueue(DateTime.UtcNow.ToString("O") + " " + message);
+            if (log) Plugin.Logger.LogInfo("[Font Diagnostics] " + message);
+        }
+
+        private static void RecordStatus()
+        {
+            Record("Status at " + Result(() => Application.loadedLevelName) + ": IMGUI=" + NameOf(() => GUI.skin.font)
+                + "; OS font count=" + OsNames.Count + "; HUD=" + (_applied == null ? "IMGUI" : Identify(_applied)));
+            foreach (var candidate in Candidates)
+                Record(Identify(candidate) + (candidate.Font != null ? " / live" : " / unloaded"));
+        }
+
+        private static void ExportReport()
+        {
+            try
+            {
+                RecordStatus();
+                const string file = "font-diagnostics.txt";
+                StoreRecordWriter.WriteFile(PersistenceService.PluginDir, PersistenceService.PathFor(file),
+                    string.Join(Environment.NewLine, History) + Environment.NewLine, keepBackup: false);
+                _status = "Saved " + file + " in the data folder.";
+            }
+            catch (Exception error) { Report("Export font diagnostics", error); }
+        }
+
+        private static void LoadBundles()
+        {
+            string folder = PersistenceService.PathFor("fonts");
+            try
+            {
+                StoreDataPolicy.EnsureSafePath(PersistenceService.PluginDir, folder);
+                Directory.CreateDirectory(folder);
+                int added = 0, attempts = 0;
+                foreach (string path in Directory.EnumerateFiles(folder, "*.bundle"))
+                {
+                    if (Bundles.Count >= StoreFontBundle.MaxBundles || attempts >= StoreFontBundle.MaxBundles) break;
+                    if (Bundles.ContainsKey(path)) continue;
+                    attempts++;
+                    try
+                    {
+                        StoreDataPolicy.EnsureSafePath(PersistenceService.PluginDir, path);
+                        var bundle = StoreFontBundle.Load(path);
+                        int before = Candidates.Count;
+                        try
+                        {
+                            foreach (var font in bundle.Fonts)
+                                Select(Add(font, Path.GetFileName(path), false, "AssetBundle"));
+                            Bundles.Add(path, bundle);
+                        }
+                        catch
+                        {
+                            Candidates.RemoveRange(before, Candidates.Count - before);
+                            Select(0);
+                            bundle.Dispose();
+                            throw;
+                        }
+                        added++;
+                        Record("Loaded " + Path.GetFileName(path) + " (" + bundle.Fonts.Count + " fonts)");
+                    }
+                    catch (Exception error) { Report("Load bundle " + Path.GetFileName(path), error); }
+                }
+                if (added > 0 || attempts == 0)
+                    _status = $"Loaded {added} new bundle(s); {Bundles.Count}/{StoreFontBundle.MaxBundles} open. Folder: " + folder;
+                RecordStatus();
+            }
+            catch (Exception error) { Report("Load local font bundles", error); }
+        }
+
+        private static void ProbeInterop()
+        {
+            const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance;
+            var type = typeof(Font);
+            Record("Font interop: " + type.Assembly.FullName + "; MVID=" + type.Module.ModuleVersionId);
+            foreach (var signature in new[] { Type.EmptyTypes, new[] { typeof(string) }, new[] { typeof(Il2CppStringArray), typeof(int) } })
+                Record("Constructor (" + string.Join(", ", Array.ConvertAll(signature, t => t.Name)) + ") "
+                    + (FindConstructor(signature) == null ? "missing" : "present"));
+            foreach (string name in new[] { "CreateDynamicFontFromOSFont", "GetOSInstalledFontNames", "Internal_CreateFont",
+                "Internal_CreateFontFromPath", "Internal_CreateDynamicFont" })
+            {
+                int count = 0;
+                foreach (var method in type.GetMethods(flags))
+                    if (method.Name == name) { count++; Record("Wrapper present: " + method); }
+                if (count == 0) Record("Wrapper missing: " + name);
+            }
+
+            foreach (var name in new[] { "GetOSInstalledFontNames", "Internal_CreateFont", "Internal_CreateFontFromPath", "Internal_CreateDynamicFont" })
+                Record("Internal call " + name + ": " + Result(() => ResolveInternalCall(name)));
+            Record(Result(StoreFontBundle.ApiStatus));
+            _status = "Interop and registration results recorded. Registration alone does not establish a callable constructor.";
+        }
+
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private static string ResolveInternalCall(string name)
+            => IL2CPP.il2cpp_resolve_icall("UnityEngine.Font::" + name) == IntPtr.Zero ? "unresolved" : "resolved";
 
         private static void Select(int index)
         {
@@ -151,6 +322,7 @@ namespace HSRTimer
             {
                 if (font != null)
                 {
+                    Record("Preview failed: " + Identify(Candidates[_selected]) + " | " + Describe(error), log: false);
                     _drawFailed = true;
                     _confirmed = false;
                     if (_applied?.Font == font) HudFailed(error);
@@ -168,21 +340,26 @@ namespace HSRTimer
 
         private static void Scan()
         {
-            Release();
-            Acquire("GUI.skin.font", () => GUI.skin.font, false);
-            Acquire("GUI.skin.label.font", () => GUI.skin.label.font, false);
-            Acquire("Built-in Arial.ttf", () => GetBuiltin(), false);
+            if (_applied != null && !_applied.Owned && _applied.Kind != "AssetBundle")
+                ResetHud("Rescanning game fonts; HUD restored to IMGUI.");
+            Candidates.RemoveAll(candidate => !candidate.Owned && candidate.Kind != "AssetBundle");
+            Select(0);
+            Acquire("GUI.skin.font", () => GUI.skin.font, false, "IMGUI Skin");
+            Acquire("GUI.skin.label.font", () => GUI.skin.label.font, false, "IMGUI Skin");
+            Acquire("Built-in Arial.ttf", () => GetBuiltin(), false, "Built-in Resource");
             try
             {
                 var loaded = FindLoadedFonts();
+                int limit = Candidates.Count + 64;
                 foreach (var font in loaded)
                 {
-                    if (Candidates.Count >= 64) break;
-                    Add(font, "Loaded Unity asset", false);
+                    if (Candidates.Count >= limit) break;
+                    Add(font, "Loaded Unity asset", false, "Game Asset");
                 }
                 _status = $"Loaded font scan returned {loaded.Length}; {Candidates.Count} unique live candidates retained.";
             }
             catch (Exception error) { Report("Loaded Unity font scan", error); }
+            RecordStatus();
         }
 
         private static void ListOsFonts()
@@ -196,19 +373,21 @@ namespace HSRTimer
                     if (!string.IsNullOrWhiteSpace(name)) OsNames.Add(name);
                 OsNames.Sort(StringComparer.CurrentCultureIgnoreCase);
                 _status = $"Unity OS list: {OsNames.Count} name(s). Each candidate still needs a draw test.";
+                Record(_status);
             }
             catch (Exception error) { Report("Unity OS enumeration", error); }
         }
 
-        private static void Acquire(string source, Func<Font> get, bool owned)
+        private static void Acquire(string source, Func<Font> get, bool owned, string kind, string requested = null)
         {
             // Keep at most one owned candidate per probe path. Applied probes
             // remain valid until replaced explicitly or reset.
             Font font = null;
             try
             {
+                Record("Acquire: " + source + (requested == null ? "" : " [" + requested + "]"));
                 font = get();
-                if (font == null) { _status = source + ": no live font returned."; return; }
+                if (font == null) { _status = source + ": no live font returned."; Record(_status); return; }
                 var old = owned ? Candidates.Find(x => x.Source == source && x.Owned) : null;
                 if (old != null && old.Font != font)
                 {
@@ -216,7 +395,8 @@ namespace HSRTimer
                     Candidates.Remove(old);
                     DestroyOwned(old);
                 }
-                Select(Add(font, source, owned));
+                Select(Add(font, source, owned, kind));
+                Record("Acquired " + Identify(Candidates[_selected]));
                 _status = source + ": acquired. Preview and inspect it separately.";
             }
             catch (Exception error)
@@ -227,13 +407,13 @@ namespace HSRTimer
             }
         }
 
-        private static int Add(Font font, string source, bool owned)
+        private static int Add(Font font, string source, bool owned, string kind)
         {
             if (font == null) return 0;
             int id = font.GetInstanceID();
             int index = Candidates.FindIndex(x => x.Id == id && x.Font != null);
             if (index >= 0) return index;
-            Candidates.Add(new Candidate(font, source, font.name, id, owned));
+            Candidates.Add(new Candidate(font, source, font.name, id, owned, kind, Result(() => font.dynamic ? "Dynamic" : "Static")));
             return Candidates.Count - 1;
         }
 
@@ -264,7 +444,7 @@ namespace HSRTimer
             });
             _evidence = $"Dynamic: {dynamicStatus}\nHasCharacter: {coverage}\nRequestCharactersInTexture: {requested}"
                 + $"\nGetCharacterInfo (0): {character}\nAtlas: {atlas}";
-            Plugin.Logger.LogInfo("[Font Diagnostics] " + _evidence.Replace("\n", " | "));
+            Record(Identify(Candidates[_selected]) + " | " + _evidence.Replace("\n", " | "));
         }
 
         private static string CharacterInfoResult(Font font)
@@ -284,6 +464,7 @@ namespace HSRTimer
 
         private static void ResetHud(string status)
         {
+            if (_applied != null) Record("Reset " + Identify(_applied) + ". " + status);
             _applied = null;
             _status = status;
         }
@@ -293,6 +474,12 @@ namespace HSRTimer
             ResetHud("Standard IMGUI font restored.");
             foreach (var candidate in Candidates) DestroyOwned(candidate);
             Candidates.Clear();
+            foreach (var bundle in Bundles.Values)
+            {
+                try { bundle.Dispose(); }
+                catch (Exception error) { Report("Unload font bundle", error); }
+            }
+            Bundles.Clear();
             Select(0);
         }
 
@@ -318,6 +505,7 @@ namespace HSRTimer
         private static void Report(string operation, Exception error)
         {
             _status = operation + ": " + Describe(error);
+            Record(_status, log: false);
             if (Warnings.Add(operation)) Plugin.Logger.LogWarning("[Font Diagnostics] " + _status);
         }
 
@@ -341,7 +529,10 @@ namespace HSRTimer
 
         private static Font CreateSingle(string name, int size)
         {
-            RequireOsFontConstructor();
+            // The inspected regenerated single-family wrapper calls Font(string).
+            // Original Unity 2019.4 source calls the array constructor instead.
+            if (FindConstructor(typeof(string)) == null && FindConstructor(typeof(Il2CppStringArray), typeof(int)) == null)
+                throw new MissingMethodException("Single-family probe skipped: neither Font(string) nor the array constructor is exposed.");
             return (Font)InvokeStatic(typeof(Font), "CreateDynamicFontFromOSFont",
                 new[] { typeof(string), typeof(int) }, name, size);
         }
@@ -353,11 +544,22 @@ namespace HSRTimer
                 new[] { typeof(Il2CppStringArray), typeof(int) }, new Il2CppStringArray(Families), size);
         }
 
+        private static ConstructorInfo FindConstructor(params Type[] signature)
+            => typeof(Font).GetConstructor(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance,
+                null, signature, null);
+
         private static void RequireOsFontConstructor()
         {
-            if (typeof(Font).GetConstructor(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance,
-                null, new[] { typeof(Il2CppStringArray), typeof(int) }, null) == null)
+            if (FindConstructor(typeof(Il2CppStringArray), typeof(int)) == null)
                 throw new MissingMethodException("OS probe skipped: the Store interop lacks Font(Il2CppStringArray, int).");
+        }
+
+        private static Font CreateByName(string name)
+        {
+            var constructor = FindConstructor(typeof(string));
+            if (constructor == null || !constructor.IsPublic)
+                throw new MissingMethodException("The public Font(string) constructor is unavailable.");
+            return (Font)constructor.Invoke(new object[] { name });
         }
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
