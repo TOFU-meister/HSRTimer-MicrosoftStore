@@ -94,12 +94,15 @@ namespace HSRTimer
             int size = cfg.Layout.FontSize;
             EnsureFont(size);
 #if STORE_IL2CPP
-            if (StoreFontDiagnostics.IsApplied)
+            // A failed session override can fall back to a saved font, which can
+            // in turn fall back to the built-in skin in the same repaint.
+            for (int attempt = 0; attempt < 2 && StoreFontDiagnostics.IsApplied; attempt++)
             {
                 try
                 {
                     ApplyFontToStyles(size);
                     DrawHud(cfg);
+                    if (cfg.Settings.ShowHud) StoreFontDiagnostics.ReportSavedDraw(size);
                     return;
                 }
                 catch (System.Exception error)
@@ -113,9 +116,17 @@ namespace HSRTimer
         }
 
 #if STORE_IL2CPP
+        private bool _savedFontChecked;
+
         private void Update()
         {
-            if (StorePerformance.Enabled) StorePerformance.Frame(ConfigService.Instance?.Settings.ShowHud == true);
+            var cfg = ConfigService.Instance;
+            if (!_savedFontChecked && cfg != null)
+            {
+                _savedFontChecked = true;
+                StoreFontDiagnostics.RestoreSavedFont(cfg.Settings.HudFont, PersistenceService.PluginDir);
+            }
+            if (StorePerformance.Enabled) StorePerformance.Frame(cfg?.Settings.ShowHud == true);
             StoreFontDiagnostics.Tick();
         }
 
@@ -585,7 +596,7 @@ namespace HSRTimer
             var weight = probe == null ? FontStyle.Bold : StoreFontDiagnostics.ActiveStyle;
             if (_rowStyle.fontStyle != weight) _rowStyle.fontStyle = weight;
             if (_bannerStyle.fontStyle != weight) _bannerStyle.fontStyle = weight;
-            if (probe != null) size = StoreFontDiagnostics.ActiveSize;
+            if (probe != null) size = StoreFontDiagnostics.ResolveHudSize(size);
 #endif
             if (_rowStyle.fontSize != size) _rowStyle.fontSize = size;
             // The invalid banner matches the timer rows' size (the fixed smaller

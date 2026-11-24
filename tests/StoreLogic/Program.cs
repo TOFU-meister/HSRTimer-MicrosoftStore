@@ -780,6 +780,103 @@ try
 }
 finally { System.IO.File.Delete(bundlePath); }
 
+string fontTestRoot = Path.Combine(Path.GetTempPath(), "hsrtimer-font-" + Guid.NewGuid());
+try
+{
+    string fontRoot = Path.Combine(fontTestRoot, "fonts");
+    Directory.CreateDirectory(fontRoot);
+    string savedPath = Path.Combine(fontRoot, "saved.bundle");
+    var savedSettings = new SettingsModel();
+    int attempts = 0;
+    StoreFontBundle LoadSaved(string path, StoreFontBundle.Route route)
+    {
+        attempts++;
+        Equal(savedPath, path, "saved bundle is resolved under fonts");
+        return StoreFontBundle.Load(path, typeof(TestFontBundle), () => new Il2CppSystem.Type(), route);
+    }
+
+    StoreFontDiagnostics.RestoreSavedFont(savedSettings.HudFont, fontTestRoot, LoadSaved);
+    Equal(0, attempts, "IMGUI preference skips load");
+    savedSettings.TrySetExternalHudFont("saved.bundle", "assets/fonts/test.ttf", StoreHudFontStyle.Normal);
+    StoreFontDiagnostics.RestoreSavedFont(savedSettings.HudFont, fontTestRoot, LoadSaved);
+    Equal(0, attempts, "missing file skips load");
+    Equal(false, StoreFontDiagnostics.IsApplied, "missing file falls back");
+    Equal(true, savedSettings.HudFont.IsExternal, "failure retains intent");
+
+    string outside = Path.Combine(fontTestRoot, "outside.bundle");
+    File.WriteAllText(outside, "UnityFS\0");
+    if (!OperatingSystem.IsWindows())
+    {
+        File.CreateSymbolicLink(savedPath, outside);
+        StoreFontDiagnostics.RestoreSavedFont(savedSettings.HudFont, fontTestRoot, LoadSaved);
+        Equal(0, attempts, "linked bundle rejected before load");
+        File.Delete(savedPath);
+    }
+
+    File.WriteAllText(savedPath, "invalid bundle");
+    StoreFontDiagnostics.RestoreSavedFont(savedSettings.HudFont, fontTestRoot, LoadSaved);
+    Equal(false, StoreFontDiagnostics.IsApplied, "bad header falls back");
+    File.WriteAllText(savedPath, "UnityFS\0");
+
+    var unmatched = TestFontBundle.Next = new() { Names = new[] { "other.ttf" } };
+    StoreFontDiagnostics.RestoreSavedFont(savedSettings.HudFont, fontTestRoot, LoadSaved);
+    Equal(false, StoreFontDiagnostics.IsApplied, "unmatched asset falls back");
+    Equal(1, unmatched.Unloads, "unmatched bundle unloaded once");
+
+    var textureOnly = TestFontBundle.Next = new() { Font = null, Texture = new UnityEngine.Texture2D() };
+    StoreFontDiagnostics.RestoreSavedFont(savedSettings.HudFont, fontTestRoot, LoadSaved);
+    Equal(false, StoreFontDiagnostics.IsApplied, "non-Font asset falls back");
+    Equal(1, textureOnly.Unloads, "texture-only bundle released");
+
+    var savedBundle = TestFontBundle.Next = new();
+    StoreFontDiagnostics.RestoreSavedFont(savedSettings.HudFont, fontTestRoot, LoadSaved);
+    Equal(true, ReferenceEquals(savedBundle.Font, StoreFontDiagnostics.ActiveFont()), "saved font restored");
+    Equal(UnityEngine.FontStyle.Normal, StoreFontDiagnostics.ActiveStyle, "saved Normal applied");
+    Equal(37, StoreFontDiagnostics.ResolveHudSize(37), "saved font uses layout size, not session size");
+
+    savedSettings.TrySetExternalHudFont("saved.bundle", "assets/fonts/test.ttf", StoreHudFontStyle.Bold);
+    int before = attempts;
+    StoreFontDiagnostics.RestoreSavedFont(savedSettings.HudFont, fontTestRoot, LoadSaved);
+    Equal(before, attempts, "restoration reuses loaded bundle");
+    Equal(UnityEngine.FontStyle.Bold, StoreFontDiagnostics.ActiveStyle, "saved Bold applied");
+
+    string otherPath = Path.Combine(fontRoot, "other.bundle");
+    File.WriteAllText(otherPath, "UnityFS\0");
+    var sessionBundle = TestFontBundle.Next = new();
+    StoreFontDiagnostics.RegisterBundle(otherPath, StoreFontBundle.Route.File,
+        StoreFontBundle.Load(otherPath, typeof(TestFontBundle), () => new Il2CppSystem.Type()), selectNew: true);
+    FontClick(null);
+    Equal(true, ReferenceEquals(savedBundle.Font, StoreFontDiagnostics.ActiveFont()), "selection alone preserves saved font");
+    FontClick("I checked the candidate visually");
+    FontClick("Apply to Timer HUD for this session");
+    Equal(true, ReferenceEquals(sessionBundle.Font, StoreFontDiagnostics.ActiveFont()), "session takes precedence");
+    Equal(StoreFontDiagnostics.ActiveSize, StoreFontDiagnostics.ResolveHudSize(37), "session uses preview size");
+    FontClick("Restore saved HUD font / release probe fonts");
+    Equal(true, ReferenceEquals(savedBundle.Font, StoreFontDiagnostics.ActiveFont()), "release returns to saved font");
+    Equal(0, savedBundle.Unloads, "retained bundle stays open");
+    Equal(1, sessionBundle.Unloads, "session bundle released once");
+
+    savedBundle.Font.Destroyed = true;
+    long now = Environment.TickCount64;
+    StoreFontDiagnostics.MaintainBundles(now, LoadSaved);
+    Equal(false, StoreFontDiagnostics.IsApplied, "invalidated saved bundle falls back while pending");
+    StoreFontDiagnostics.MaintainBundles(now + 500, LoadSaved);
+    Equal(before, attempts, "saved recovery respects cooldown");
+    var recovered = TestFontBundle.Next = new();
+    StoreFontDiagnostics.MaintainBundles(now + 2000, LoadSaved);
+    Equal(true, ReferenceEquals(recovered.Font, StoreFontDiagnostics.ActiveFont()), "saved font rebinds after recovery");
+    Equal(UnityEngine.FontStyle.Bold, StoreFontDiagnostics.ActiveStyle, "recovery keeps saved style");
+    StoreFontDiagnostics.Release();
+    StoreFontDiagnostics.Release();
+    Equal(1, savedBundle.Unloads, "invalidated bundle unloaded once");
+    Equal(1, recovered.Unloads, "shutdown unloads recovered saved bundle once");
+}
+finally
+{
+    StoreFontDiagnostics.Release();
+    Directory.Delete(fontTestRoot, recursive: true);
+}
+
 var frameWindow = new StoreFrameWindow(100);
 for (int i = 0; i < 98; i++) frameWindow.Add(0.01f);
 frameWindow.Add(0.04f);
