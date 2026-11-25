@@ -170,3 +170,15 @@ ZIPに収録するのは `fonts/` の5件、3言語の導入説明、原文ラ�
 Noto Sans CJKとRoboto MonoはOFL 1.1、Roboto Regularは取得元タグv2.138のApache 2.0です。固定済みフォントファイルのnameテーブルから著作権表示を取り、取得元と一致するライセンス原文を収録しています。Roboto取得元のタグのファイル一覧で別の `NOTICE` または `NOTICE.txt` は確認されませんでした。ZIPに含める `FONT-SOURCES.csv` のURLに取得元タグ／コミットを記録します。フォント本体の改変や文字削減は行わず、検証済みUnity Bundleをそのまま収録します。
 
 構文と模擬データでの回帰検査は `pwsh -NoProfile -File .\tests\StoreFontBundles\Test-StoreFontPack.ps1` で実行できます。模擬用のハッシュはテストが作る一時コピーの中だけで使います。
+
+### 第11-3段階のWindows実機結果
+
+`HSRTimer-MicrosoftStore-FontPack-v1.0.zip` は42,472,033 bytes（40.50 MiB）、Bundle 5種類、ZIP内14件です。報告されたSHA256は `AF74D061D6FBA56130B41C33CDF1BFAC04FD5F5E6873CCDCDBB2BD83A8A56B8C` です。容量削減前のBundleは固定表との不一致で拒否され、独立生成版からZIPを作成して内部ファイルのSHA256再検証まで成功しました。
+
+Windows PowerShellの回帰結果は `Font pack tests passed on PowerShell 5.1.26100.8875.` です。パッケージのシンボリックリンク拒否テストはLinuxのPowerShell 7で実行したもので、Windowsでの実行結果には含めません。
+
+### 公開タグとの差分
+
+`v0.1.2-pre`（`fd51da989aa9fd219df356c33a19b4fcc3a91e72`）から第11-3段階の `000faf38b26199ade252550b39b849fd455089f5` までの19コミットを比較しました。数値マップIDの解決、外部フォントの選択・保存・復元、Bundle共有と復旧、診断モードの分離、および任意フォントパック用スクリプトが含まれます。Automatic PB Backupの設定・既定OFF・既存PBの更新時バックアップは公開タグにもあります。今回の差分で新設した機能としては扱いません。[GitHubの差分](https://github.com/TOFU-meister/HSRTimer-MicrosoftStore/compare/v0.1.2-pre...000faf38b26199ade252550b39b849fd455089f5)
+
+[公開前チェック](releases/VERIFY-v0.1.3-pre.md)

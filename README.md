@@ -2,7 +2,7 @@
 
 Windows x64 の **Human: Fall Flat（Microsoft Store／Xbox PC アプリ版）** 向けの非公式移植です。ゲーム時間の自動計測、Timer HUD、タグ別の PB、サブセグメント比較、マーカーを利用できます。
 
-開発版は **0.1.3-pre**、公開済みの初回テスト版は **0.1.0-pre** です。[テスト版の導入説明](docs/releases/README-v0.1.0-pre.txt)
+開発版は **0.1.3-pre**、現在の公開版は **0.1.2-pre** です。[3言語の導入・更新ガイド](docs/releases/INSTALL-v0.1.3-pre.md) · [0.1.3-pre リリースノート案](docs/releases/v0.1.3-pre.md)
 
 ## 対応環境
 
@@ -51,7 +51,7 @@ C:\XboxGames\Human Fall Flat\Content\
 
 ### 4. プラグインの DLL を入れる
 
-ゲームを終了したまま、使いたいプラグインの GitHub Releases を開き、対象バージョンの **Assets** から **DLL を直接**ダウンロードします。以下は対象バージョンが公開されたときのファイル名です。
+ゲームを終了したまま、使いたいプラグインの GitHub Releases を開き、対象バージョンの **Assets** から **DLL を直接**ダウンロードします。現在の公開版を使う場合は `HSRTimer-v0.1.2-pre.dll` を選びます。下表の `0.1.3-pre` は次回公開予定のファイル名です。
 
 | プラグイン | ダウンロードする DLL | 置くフォルダー |
 | --- | --- | --- |
@@ -87,7 +87,7 @@ C:\XboxGames\Human Fall Flat\Content\
 
 **ワンキーリトライの行き先**は Home → General → Specify retry level を ON にし、**Retry Map (Name or ID)** に指定します。名前のほか、plcc timer と同じ絶対番号（例 `0`、`1`、`100`）を入力できます。[対応するマップと番号](docs/RETRY-MAP-IDS.md)
 
-**Home → General → Automatic PB Backup（PBの自動バックアップ）** は既定で OFF です。ON にすると、更新前の PB を保存します。OFF にしても PB の通常保存と読み込みは使え、既存のバックアップは残ります。マーカー編集時のバックアップも従来どおりです。
+**Home → General → Automatic PB Backup（PBの自動バックアップ）** は既定で OFF です。ON にすると、既存のILサブセグメントPBとマーカーPBが更新されるときに、更新前の記録を残します。保存容量が増える場合があります。OFF にしても PB の通常保存と読み込みは使え、既存のバックアップは残ります。マーカー編集時のバックアップも従来どおりです。
 
 保存先は既定で **`<Windows のドキュメント>/HSRTimer-MicrosoftStore/`** です。Windows が返すドキュメントの場所を使うため、OneDrive 側に移動している場合も、その場所が安全かつ書き込み可能なら使います。フォルダーが見つからない、書き込みできない、または再解析ポイントを経由する場合は **`%LOCALAPPDATA%\HSRTimer-MicrosoftStore`** に切り替わります。
 
@@ -138,7 +138,9 @@ Store 版は `0.x.x-pre` を使い、各プラグインで独立して進めま�
 
 ### 開発版のフォント確認
 
-開発版 `0.1.3-pre` では、`Home → About → Font Diagnostics` から取得方法と実描画を比較できます。標準フォントは従来の IMGUI スキンで、一時適用はそのセッションの Timer HUD に限ります。[第1段階の調査](docs/store-font-diagnostics.md)・[第2段階の診断と AssetBundle 作成手順](docs/store-font-stage2.md)・[第3段階の採取手順](docs/store-font-stage3.md)・[第4段階のメタデータ解析](docs/store-font-stage4.md)・[第5段階の Bundle 読込診断](docs/store-font-stage5.md)・[第6段階の寿命管理](docs/store-font-stage6.md)・[第9段階の複数フォント生成と比較手順](docs/store-font-stage9.md)
+開発版の正式なHUDフォント設定は、任意のフォントパックに対応します。[導入・標準表示への戻し方](docs/releases/INSTALL-v0.1.3-pre.md#日本語)
+
+開発者は[診断モード](docs/store-font-stage10.md#第11-2段階--診断モード開発者向け)で `Home → About → Font Diagnostics` から取得方法と実描画を比較できます。標準フォントは従来の IMGUI スキンで、一時適用はそのセッションの Timer HUD に限ります。[第1段階の調査](docs/store-font-diagnostics.md)・[第2段階の診断と AssetBundle 作成手順](docs/store-font-stage2.md)・[第3段階の採取手順](docs/store-font-stage3.md)・[第4段階のメタデータ解析](docs/store-font-stage4.md)・[第5段階の Bundle 読込診断](docs/store-font-stage5.md)・[第6段階の寿命管理](docs/store-font-stage6.md)・[第9段階の複数フォント生成と比較手順](docs/store-font-stage9.md)
 
 ## ライセンス・クレジット
 
