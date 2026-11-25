@@ -13,6 +13,10 @@ namespace HSRTimer
         public readonly LocalizationService Localization = new LocalizationService();
 
         public static ConfigService Instance { get; private set; }
+#if STORE_IL2CPP
+        internal static bool DebugModeEnabled => Instance?._debugModeAtStartup == true;
+        private bool _debugModeAtStartup;
+#endif
 
         /// <summary>
         /// Raised after <see cref="SaveSettings"/> has written every config
@@ -28,6 +32,9 @@ namespace HSRTimer
         {
             PersistenceService.EnsureDirs();
             Settings.Load();
+#if STORE_IL2CPP
+            _debugModeAtStartup = Settings.EnableDebugMode;
+#endif
             EnabledTags.Load();
             Layout.Load();
             // First-run default seeding: when layout.ini does not exist yet,

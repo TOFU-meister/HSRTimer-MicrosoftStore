@@ -23,6 +23,7 @@ namespace HSRTimer
 
 #if STORE_IL2CPP
         public bool AutomaticPbBackup;
+        internal bool EnableDebugMode { get; private set; }
 #endif
         public bool AutoReset = true;             // R1.7.2 (default on)
         public bool RestartClearsForgivable = false; // R5.4.3 — pause-menu Restart clears forgivable flags (default off); the one-key retry always clears them (R5.4.2, fixed)
@@ -137,6 +138,7 @@ namespace HSRTimer
         {
 #if STORE_IL2CPP
             AutomaticPbBackup = false;
+            EnableDebugMode = false;
             string fontMode = null, fontBundle = null, fontAsset = null, fontStyle = null;
 #endif
             foreach (var p in PersistenceService.Read(PersistenceService.PathFor("settings.ini")))
@@ -158,6 +160,10 @@ namespace HSRTimer
                     ApplyPresets(p.Key, p.Value);
                 }
 #if STORE_IL2CPP
+                else if (p.Section == "Debug" && p.Key == "EnableDebugMode")
+                {
+                    EnableDebugMode = bool.TryParse(p.Value, out bool enabled) && enabled;
+                }
                 else if (p.Section == HudFontSection)
                 {
                     switch (p.Key)
@@ -385,6 +391,10 @@ namespace HSRTimer
                     new KeyValuePair<string, IDictionary<string, string>>(MarkersSection, markers),
                     new KeyValuePair<string, IDictionary<string, string>>(PresetsSection, presets),
 #if STORE_IL2CPP
+                    new KeyValuePair<string, IDictionary<string, string>>("Debug", new Dictionary<string, string>
+                    {
+                        ["EnableDebugMode"] = EnableDebugMode ? "true" : "false",
+                    }),
                     new KeyValuePair<string, IDictionary<string, string>>(HudFontSection, new Dictionary<string, string>
                     {
                         ["mode"] = HudFont.IsExternal ? "external" : "imgui",

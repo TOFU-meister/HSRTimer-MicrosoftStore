@@ -335,7 +335,7 @@ namespace HSRTimer
 
         internal static void ReportSavedDraw(int size)
         {
-            if (_applied != null || _saved == null || _reportedSaved == _saved) return;
+            if (!ConfigService.DebugModeEnabled || _applied != null || _saved == null || _reportedSaved == _saved) return;
             _reportedSaved = _saved;
             Record($"Saved HUD font drawn: {_saved.Name} #{_saved.Id} / {_saved.Source} / {_saved.AssetName} "
                 + $"at {size}px, style={_savedStyle}.");
@@ -375,6 +375,7 @@ namespace HSRTimer
 
         internal static void Draw(GUIStyle button, GUIStyle label)
         {
+            if (!ConfigService.DebugModeEnabled) return;
             if (GUILayout.Button(_open ? "Hide Font Diagnostics" : "Font Diagnostics", button))
             {
                 _open = !_open;
@@ -527,8 +528,11 @@ namespace HSRTimer
 
         private static void Record(string message, bool log = true)
         {
-            if (History.Count >= 256) History.Dequeue();
-            History.Enqueue(DateTime.UtcNow.ToString("O") + " " + message);
+            if (ConfigService.DebugModeEnabled)
+            {
+                if (History.Count >= 256) History.Dequeue();
+                History.Enqueue(DateTime.UtcNow.ToString("O") + " " + message);
+            }
             if (log) Plugin.Logger.LogInfo("[Font Diagnostics] " + message);
         }
 
@@ -694,8 +698,9 @@ namespace HSRTimer
             if (slot.AwaitingHudDetach) return false;
             _status = $"Invalidated at {Result(() => Application.loadedLevelName)}: {Path.GetFileName(path)} ({reason}).";
             Record(_status);
-            foreach (var candidate in Candidates)
-                if (candidate.BundlePath == path) Record("Withdrawn candidate: " + Identify(candidate), log: false);
+            if (ConfigService.DebugModeEnabled)
+                foreach (var candidate in Candidates)
+                    if (candidate.BundlePath == path) Record("Withdrawn candidate: " + Identify(candidate), log: false);
             Candidate selected = Candidates.Count > 0 ? Candidates[_selected] : null;
             if (selected?.BundlePath == path) _pendingPreview = (path, selected.AssetName);
             if (string.Equals(path, _savedPath, StringComparison.OrdinalIgnoreCase))
@@ -727,7 +732,9 @@ namespace HSRTimer
             MaintainBundles(Environment.TickCount64, (path, route) =>
             {
                 StoreDataPolicy.EnsureSafePath(Path.Combine(PersistenceService.PluginDir, "fonts"), path);
-                return LoadWithUnityMessages(path, route, message => Record(message, log: false));
+                return ConfigService.DebugModeEnabled
+                    ? LoadWithUnityMessages(path, route, message => Record(message, log: false))
+                    : StoreFontBundle.Load(path, route, _ => { });
             });
         }
 

@@ -60,7 +60,11 @@ namespace HSRTimer
                 RespawnJumpMeters = s.SubsegmentRespawnJumpMeters,
                 MaxSamplesPerLevel = Mathf.Max(1, s.SubsegmentMaxSamplesPerLevel),
                 MaxLeaderboardEntries = Mathf.Max(1, s.SubsegmentMaxLeaderboardEntries),
+#if STORE_IL2CPP
+                DebugLogging = s.SubsegmentDebugLogging && ConfigService.DebugModeEnabled,
+#else
                 DebugLogging = s.SubsegmentDebugLogging,
+#endif
                 DisabledLeaderboardSources = new HashSet<string>(
                     s.GetDisabledSubsegmentSources(), System.StringComparer.OrdinalIgnoreCase),
             };

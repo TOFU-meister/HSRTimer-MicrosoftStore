@@ -152,6 +152,9 @@ namespace HSRTimer
 
         private void Log(string message)
         {
+#if STORE_IL2CPP
+            if (!ConfigService.DebugModeEnabled) return;
+#endif
             if (Settings != null && Settings.MarkersDebugLogging)
                 Plugin.Logger.LogInfo("HSRTimer[markers]: " + message);
         }

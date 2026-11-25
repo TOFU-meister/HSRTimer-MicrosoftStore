@@ -216,6 +216,18 @@ try
     var settingsModel = new SettingsModel();
     Equal(false, settingsModel.AutomaticPbBackup, "New config defaults OFF");
     var iniPath = PersistenceService.PathFor("settings.ini");
+    Equal(false, settingsModel.EnableDebugMode, "new config hides developer tools");
+    foreach (var (line, expected) in new[] { ("", false), ("EnableDebugMode=false", false),
+        ("EnableDebugMode=true", true), ("EnableDebugMode=invalid", false), ("EnableDebugMode=1", false) })
+    {
+        File.WriteAllText(iniPath, "[Debug]\n" + line + "\n[settings]\nautomatic_pb_backup=true\n");
+        settingsModel.Load();
+        Equal(expected, settingsModel.EnableDebugMode, "debug flag only accepts true/false");
+        settingsModel.Save();
+        settingsModel.Load();
+        Equal(expected, settingsModel.EnableDebugMode, "normal save preserves debug flag");
+        Equal(true, settingsModel.AutomaticPbBackup, "debug settings do not change backup preference");
+    }
     File.WriteAllText(iniPath, "[settings]\nauto_reset = true\n");
     settingsModel.AutomaticPbBackup = true;
     settingsModel.Load();
@@ -457,6 +469,12 @@ void FontClick(string text)
 
 var persistentHudSettings = new SettingsModel();
 ConfigService.Instance = new ConfigService { Settings = persistentHudSettings };
+FontClick("Font Diagnostics");
+Equal(0, UnityEngine.GUILayout.Labels.Count, "OFF draws no font diagnostic content");
+UnityEngine.GUILayout.Click = "Start performance capture";
+StorePerformance.Draw(new UnityEngine.GUIStyle(), new UnityEngine.GUIStyle());
+Equal(false, StorePerformance.Enabled, "OFF cannot start capture through UI");
+ConfigService.DebugModeEnabled = true;
 Equal(false, StoreFontDiagnostics.IsApplied, "IMGUI remains default");
 FontClick("Font Diagnostics");
 FontClick("List Unity OS fonts");
@@ -844,8 +862,10 @@ try
     Equal(1, textureOnly.Unloads, "texture-only bundle released");
 
     var savedBundle = TestFontBundle.Next = new();
+    ConfigService.DebugModeEnabled = false;
     StoreFontDiagnostics.RestoreSavedFont(savedSettings.HudFont, fontTestRoot, LoadSaved);
     Equal(true, ReferenceEquals(savedBundle.Font, StoreFontDiagnostics.ActiveFont()), "saved font restored");
+    ConfigService.DebugModeEnabled = true;
     Equal(UnityEngine.FontStyle.Normal, StoreFontDiagnostics.ActiveStyle, "saved Normal applied");
     Equal(37, StoreFontDiagnostics.ResolveHudSize(37), "saved font uses layout size, not session size");
 
@@ -871,6 +891,7 @@ try
     Equal(0, savedBundle.Unloads, "retained bundle stays open");
     Equal(1, sessionBundle.Unloads, "session bundle released once");
 
+    ConfigService.DebugModeEnabled = false;
     savedBundle.Font.Destroyed = true;
     long now = Environment.TickCount64;
     StoreFontDiagnostics.MaintainBundles(now, LoadSaved);
@@ -939,6 +960,7 @@ finally
     Directory.Delete(fontTestRoot, recursive: true);
 }
 
+ConfigService.DebugModeEnabled = true;
 var frameWindow = new StoreFrameWindow(100);
 for (int i = 0; i < 98; i++) frameWindow.Add(0.01f);
 frameWindow.Add(0.04f);

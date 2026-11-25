@@ -61,6 +61,7 @@ namespace HSRTimer
     public class ConfigService
     {
         public static ConfigService Instance;
+        internal static bool DebugModeEnabled { get; set; }
         public SettingsModel Settings;
         public LocalizationService Localization;
         public TestTags EnabledTags;

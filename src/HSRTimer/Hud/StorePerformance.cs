@@ -48,6 +48,7 @@ namespace HSRTimer
 
         internal static void Draw(GUIStyle button, GUIStyle label)
         {
+            if (!ConfigService.DebugModeEnabled) return;
             if (GUILayout.Button(Enabled ? "Stop performance capture" : "Start performance capture", button))
             {
                 if (Enabled)

@@ -1018,7 +1018,13 @@ namespace HSRTimer
         {
             Section(loc.Get("PANEL_SUBSEGMENT"));
             s.SubsegmentEnable = Toggle(loc.Get("SETTINGS_SUBSEGMENT_ENABLE"), s.SubsegmentEnable);
-            s.SubsegmentDebugLogging = Toggle(loc.Get("SETTINGS_SUBSEGMENT_DEBUG_LOGGING"), s.SubsegmentDebugLogging);
+#if STORE_IL2CPP
+            bool showDebugLogging = ConfigService.DebugModeEnabled;
+#else
+            const bool showDebugLogging = true;
+#endif
+            if (showDebugLogging)
+                s.SubsegmentDebugLogging = Toggle(loc.Get("SETTINGS_SUBSEGMENT_DEBUG_LOGGING"), s.SubsegmentDebugLogging);
 
             s.SubsegmentPBPath = TextFieldRow(loc.Get("SETTINGS_SUBSEGMENT_PB_PATH"), s.SubsegmentPBPath);
             s.SubsegmentLoadPath = TextFieldRow(loc.Get("SETTINGS_SUBSEGMENT_LOAD_PATH"), s.SubsegmentLoadPath);
