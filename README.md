@@ -4,6 +4,8 @@ Windows x64 の **Human: Fall Flat（Microsoft Store／Xbox PC アプリ版）**
 
 開発版は **0.1.3-pre**、現在の公開版は **0.1.2-pre** です。[3言語の導入・更新ガイド](docs/releases/INSTALL-v0.1.3-pre.md) · [0.1.3-pre リリースノート案](docs/releases/v0.1.3-pre.md)
 
+開発版 0.1.3-pre の [Windows最終検証記録](docs/releases/VERIFY-v0.1.3-pre.md) を参照できます。
+
 ## 対応環境
 
 - Windows 64 ビットの Human: Fall Flat Microsoft Store／Xbox PC 版（Unity 2019.4.24f1 IL2CPP）
