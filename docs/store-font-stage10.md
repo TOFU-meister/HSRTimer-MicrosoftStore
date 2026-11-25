@@ -146,3 +146,27 @@ EnableDebugMode=true
 | ゲーム内のShellコマンド、Aboutの更新確認・データフォルダー | 従来どおり。Shellには診断のほかリロードやマーカー編集が混在 |
 
 Windowsで新DLLを起動し、OFFではAboutとSubsegmentに診断操作がなく、保存済みフォントが描画されることを確認します。ゲーム終了後にONへ切り替え、再起動して診断・計測操作が使えることを確認します。最後にOFFへ戻し、再起動して通常表示に戻ります。正式フォントを切り替えて保存する場合は、`[Debug]` の指定が維持されることも確認します。Bundleの再生成は不要です。
+
+### 第11-2段階のWindows実機結果
+
+OFF → ON → OFFを確認しました。OFF時は通常GUIに診断欄が現れず、保存済み外部フォントの復元とHUD描画は正常でした。ON時はフォント診断、パフォーマンス計測、CSV出力を確認しました。保存された起動ログ2件は各Error 0件、既存のIl2CppInterop Warning各76件でした。初回OFFはユーザーによる目視確認です。TwilightInputOverlay v0.1.2-preとの併用も正常でした。
+
+## 第11-3段階 — フォントパック作成（配布担当者向け）
+
+第9段階の**独立生成済みembedded出力**を使います。入力には `group-a`、`group-b`、同時生成された `bundle-hashes.csv` が必要です。`tools/StoreFontPack/verified-bundles.csv` は独立生成版の実機比較記録から固定した5件の容量とSHA256です。旧版と非圧縮版は検証を通りません。5件合計は45,246,980 bytesです。
+
+```powershell
+Set-Location C:\HSRTimer-MicrosoftStore
+$run = 'C:\path\to\the\verified-stage9-run'
+$out = Join-Path $PWD 'fontpack-output'
+New-Item -ItemType Directory -Path $out -Force | Out-Null
+powershell.exe -NoProfile -File .\scripts\New-StoreFontPack.ps1 -BundleRunDirectory $run -OutputDirectory $out
+```
+
+PowerShell 7では最後の行で `pwsh` を使えます。パッケージ工程はオフラインで実行でき、Unityは不要です。入力CSV・実ファイルを固定値と照合し、グループ内の余分なファイルやリンクを拒否します。ZIP内の名前とハッシュを再検証してから `HSRTimer-MicrosoftStore-FontPack-v1.0.zip` として確定し、最終ZIPのSHA256を表示します。同名ZIPが既にある場合は停止します。
+
+ZIPに収録するのは `fonts/` の5件、3言語の導入説明、原文ライセンスと著作権表示、`FONT-SOURCES.csv`、`SHA256SUMS.txt` のみです。入力ディレクトリ直下のUnity作業物やログは収録しません。生成ZIPとBundleはGitに追加しないでください。
+
+Noto Sans CJKとRoboto MonoはOFL 1.1、Roboto Regularは取得元タグv2.138のApache 2.0です。固定済みフォントファイルのnameテーブルから著作権表示を取り、取得元と一致するライセンス原文を収録しています。Roboto取得元のタグのファイル一覧で別の `NOTICE` または `NOTICE.txt` は確認されませんでした。ZIPに含める `FONT-SOURCES.csv` のURLに取得元タグ／コミットを記録します。フォント本体の改変や文字削減は行わず、検証済みUnity Bundleをそのまま収録します。
+
+構文と模擬データでの回帰検査は `pwsh -NoProfile -File .\tests\StoreFontBundles\Test-StoreFontPack.ps1` で実行できます。模擬用のハッシュはテストが作る一時コピーの中だけで使います。
